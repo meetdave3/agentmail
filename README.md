@@ -2,16 +2,11 @@
 
 ![Agentmail](./assets/hero.png)
 
-**Two AI coding agents. One local inbox. A dashboard to watch them work.**
+**Two AI coding agents. One shared inbox. A dashboard so you can watch them work.**
 
-agentmail lets two CLI coding agents (Claude, Codex, anything that speaks
-MCP) send each other structured messages instead of routing through you.
-The typical setup: one plans and reviews, the other implements — they go
-back and forth until the work holds up, and only the final result reaches
-your desk.
+I built this for a specific habit: using Claude to write code and Codex to review it. Claude is fast and creative. Codex is strict and pedantic. They send each other prompts, reports, and review notes through agentmail. I watch from a terminal dashboard and either let messages through, edit them, or drop them before they reach the other side.
 
-You stay in the loop through a live terminal dashboard, where you can read,
-edit, or drop any message before it lands on the other side.
+Your pair can be anything that speaks [MCP](https://modelcontextprotocol.io). The names above are just mine.
 
 ```
 ┌──────────────┐                       ┌──────────────┐
@@ -36,48 +31,32 @@ edit, or drop any message before it lands on the other side.
 
 ## Why
 
-You probably started with one agent. Claude (or Codex, or whichever) ships
-fast — but it cuts corners. Tests it didn't run. Edge cases it hand-waved.
-Features marked done that aren't quite.
+Here's the path that got me here. Started with one agent, Claude. Ships fast, cuts corners. Tests it didn't actually run. Edge cases it hand-waved. Features marked done that weren't quite.
 
-The fix isn't a sharper prompt. You need a second pair of eyes on the
-output. So you bring in another LLM with a different temperament — one
-that's stricter, more pedantic, the kind that actually reads the spec.
+A sharper prompt only gets you so far. What it actually needed was a second pair of eyes on the output. So I brought in Codex. Stricter LLM, different temperament. The kind that reads the spec twice.
 
-The first thing you try is letting one agent spawn the other as a CLI
-tool. It kind of works — except both contexts balloon into tool calls
-*talking about* the code instead of writing it.
+First try was letting Codex spawn Claude CLIs directly. Worked for a minute. Then both contexts ballooned into tool calls *talking about* the code instead of writing it.
 
-Turns out the two don't need to live in each other's heads. They just
-need to pass notes.
+Turns out the two don't need to live in each other's heads. They just need to pass notes.
 
-That's agentmail. Each agent gets an inbox. They send structured messages,
-pull them when they're ready, and spend the rest of their context on real
-work. You watch from a live dashboard and gate what gets through.
+That's agentmail. Each agent gets an inbox. They send structured messages, pull them when ready, and spend the rest of their context on the actual work. You watch the live dashboard and decide what gets through.
 
-## Design constraints
+## Four rules it lives by
 
-- **Pull-only.** No message ever auto-injects into an agent's context. Agents
-  call `inbox` (terse headers, no bodies) to see what's queued, then
-  `pull <id>` to deliberately spend context on one message. This mirrors
-  the discipline of copy-paste.
-- **Tiny tool surface.** Five MCP tools, total. The only blocking one is
-  `wait`, which long-polls for the next visible message — a single
-  tool call rather than a polling loop.
-- **Human-gated by default.** New agents start in `MANUAL` mode — every
-  inbound message is held until the human releases it (with optional edits
-  and appended notes).
-- **Per-project, local-first.** State lives in `.mail/` in the project root.
-  One daemon per workspace. No remote sync. No multi-user.
+**Pull-only.** No message ever auto-injects into an agent's context. Agents call `inbox` to see what's queued (headers only, never bodies), then `pull <id>` when they're ready to spend context on one. The discipline of copy-paste, without the keyboard.
+
+**Tiny tool surface.** Five MCP tools total. Only one of them blocks: `wait`, which long-polls for the next message instead of forcing the agent to spin in a poll loop.
+
+**Human-gated by default.** Every new agent starts in `MANUAL` mode. Inbound messages sit in a pending queue until you release them, with optional edits or appended notes. You decide what gets through, every time, until you flip the agent to `AUTO`.
+
+**Per-project, local-first.** State lives in `.mail/` inside the project root. One daemon per workspace. No remote sync. No multi-user. No cloud.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) ≥ 1.2 (daemon + TUI)
-- [Node.js](https://nodejs.org) ≥ 18 (the stdio MCP server runs under Node — see [`src/cli/mcp.ts`](./src/cli/mcp.ts) for why)
+- [Bun](https://bun.sh) 1.2 or newer (runs the daemon and TUI)
+- [Node.js](https://nodejs.org) 18 or newer (the stdio MCP server runs under Node; see [`src/cli/mcp.ts`](./src/cli/mcp.ts) for why)
 - A terminal that supports 256 colors (any modern one)
-- One or more MCP-compatible agent CLIs ([Claude
-  Code](https://claude.ai/code), [OpenAI
-  Codex](https://github.com/openai/codex), etc.)
+- One or more MCP-capable agent CLIs ([Claude Code](https://claude.ai/code), [OpenAI Codex](https://github.com/openai/codex), etc.)
 
 ## Install
 
@@ -112,17 +91,14 @@ From the root of any project you want to coordinate agents in:
 agentmail
 ```
 
-That's it. The first run scaffolds `.mail/` and prints MCP wiring snippets to
-paste into your agents' configs:
+That's it. The first run scaffolds `.mail/` and prints MCP wiring snippets to paste into your agents' configs:
 
-- **Claude** → `.mcp.json` in the project root
-- **Codex** → `.codex/config.toml` (or merge with an existing block)
+- **Claude** goes in `.mcp.json` in the project root
+- **Codex** goes in `.codex/config.toml` (or merge with an existing block)
 
-Both snippets set `AGENTMAIL_DIR` to this project's `.mail/` so the MCP server
-finds the right daemon when the agent CLI launches it.
+Both snippets set `AGENTMAIL_DIR` to this project's `.mail/` so the MCP server finds the right daemon when the agent CLI launches it.
 
-Paste them, then run `agentmail` again. This time it starts the daemon (in
-the background, surviving the dashboard) and opens the TUI:
+Paste them, then run `agentmail` again. This time it starts the daemon (in the background, surviving the dashboard) and opens the TUI:
 
 ```
 ┌─ agentmail · backoffice ─────────────── 127.0.0.1:7777 ● live ─┐
@@ -135,14 +111,11 @@ PENDING REVIEW (1) · [j/k] move · [→/←] expand/collapse · [r]elease · [d
 ▸ codex → claude [prompt] audit auth middleware
 ```
 
-Add `.mail/` to your project's `.gitignore` (it holds local sqlite state and a
-pid file).
+Add `.mail/` to your project's `.gitignore`. It holds local sqlite state and a pid file.
 
-Start your agent CLIs from the same project directory. They'll automatically
-expose the five `mail_*` tools.
+Start your agent CLIs from the same project directory. They'll automatically expose the five MCP tools.
 
-**Shutdown.** Closing the TUI (`q`) leaves the daemon running so in-flight
-agent calls don't break. To fully stop:
+**Shutdown.** Closing the TUI (`q`) leaves the daemon running so in-flight agent calls don't break. To fully stop:
 
 ```bash
 agentmail stop
@@ -150,8 +123,7 @@ agentmail stop
 
 ## Wire it into your project's instructions
 
-Each agent needs to know how to use agentmail. There's a bootstrap guide
-written for an LLM to read — point a setup session at:
+Each agent needs to know how to use agentmail. There's a bootstrap guide written for an LLM to read. Point a setup session at:
 
 ```
 https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt
@@ -162,45 +134,38 @@ Open a fresh session in the project you want to wire up and say:
 > Read <https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt>
 > and follow it to update this project's CLAUDE.md and AGENTS.md.
 
-The file documents the five MCP tools, the implementer ↔ reviewer loop, and
-the exact snippets to merge into each agent's instruction file. It's
-versioned in this repo — the link is always current.
+The file documents the five MCP tools, the implementer ↔ reviewer loop, and the exact snippets to merge into each agent's instruction file. It's versioned in this repo, so the link is always current.
 
 ## MCP tools (the entire surface)
 
 | Tool         | Purpose |
 | ------------ | ------- |
 | `inbox`  | List headers of messages addressed to you and currently pullable. Returns `id`, `from`, `ts`, `title`, `type` only. **Never bodies.** Cheap on context. Returns instantly. |
-| `wait`   | Block until your inbox has at least one visible message, or `timeoutSec` elapses (default 1800, capped at 1800). Returns the same headers as `inbox` — never bodies. If your inbox is already non-empty, returns immediately. Use this instead of a polling loop. |
+| `wait`   | Block until your inbox has at least one visible message, or `timeoutSec` elapses (default 1800, capped at 1800). Returns the same headers as `inbox`, never bodies. If your inbox is already non-empty, returns immediately. Use this instead of a polling loop. |
 | `pull`   | Fetch the full body of one message by id and mark it consumed. The only path a body enters your context. |
 | `send`   | Send a tagged message to the other agent (or to the human). Defaults `to` to the peer. |
-| `status` | Set a short "what I'm working on" string for the dashboard. Write-only — the value is never echoed back into your context. |
+| `status` | Set a short "what I'm working on" string for the dashboard. Write-only. The value is never echoed back into your context. |
 
 ### Message types
 
 `send` accepts a `type` field used for filtering and labeling:
 
-- `prompt` — a task delegated to the recipient
-- `report-back` — completion report from the recipient
-- `blockers` — a mid-flight question/blocker raised by the recipient
-- `review-finding` — a reviewer asking for changes
-- `green-light` — a reviewer approving the work
-- `commit-pr-prompt` — a final "create commits and a PR" instruction
-- `note` — anything else
+- `prompt`: a task delegated to the recipient
+- `report-back`: completion report from the recipient
+- `blockers`: a mid-flight question or blocker raised by the recipient
+- `review-finding`: a reviewer asking for changes
+- `green-light`: a reviewer approving the work
+- `commit-pr-prompt`: a final "create commits and a PR" instruction
+- `note`: anything else
 
-agentmail does not enforce a workflow — these labels are advisory. Use whichever
-matches the contract you and the agents have agreed on.
+These labels are advisory. agentmail doesn't enforce a workflow. Use whichever match the contract you and your agents have agreed on.
 
 ## Modes
 
 Modes are set **per-agent** and govern **inbound** delivery to that agent.
 
-- **MANUAL** (default) — every message addressed to this agent is held in
-  the pending-review queue. The agent's `inbox` does not see it until
-  you release it in the TUI (with optional edits or appended notes). This
-  is the hands-on gate.
-- **AUTO** — messages addressed to this agent are released immediately and
-  visible in their inbox. You can still append notes, but you don't have to.
+- **MANUAL** (default). Every message addressed to this agent is held in the pending-review queue. The agent's `inbox` does not see it until you release it in the TUI, with optional edits or appended notes. This is the hands-on gate.
+- **AUTO**. Messages addressed to this agent are released immediately and visible in their inbox. You can still append notes, but you don't have to.
 
 Toggle from the TUI with `1` (Claude) and `2` (Codex), or:
 
@@ -228,19 +193,17 @@ q         quit
 Each row in the live log shows a delivery state, WhatsApp-style:
 
 ```
-HELD    held in the manual-mode gate — recipient's inbox can't see it yet
-✓       released — visible in the recipient's inbox, but they haven't pulled the body
-✓✓      consumed — the recipient called pull and the body entered their context
-DROP    dropped — you rejected it; it never reached the recipient
+HELD    held in the manual-mode gate. Recipient's inbox can't see it yet.
+✓       released. Visible in the recipient's inbox, but they haven't pulled the body.
+✓✓      consumed. The recipient called pull and the body entered their context.
+DROP    dropped. You rejected it; it never reached the recipient.
 ```
 
-The same row updates in place as a message progresses. No new row is added
-when an agent reads.
+The same row updates in place as a message progresses. No new row is added when an agent reads.
 
 ## Commands
 
-The everyday command is just `agentmail` — it auto-inits, ensures the daemon is
-running, and opens the dashboard. The rest are escape hatches.
+The everyday command is just `agentmail`. It auto-inits, ensures the daemon is running, and opens the dashboard. The rest are escape hatches.
 
 ```
 agentmail                               init if needed, ensure daemon, open TUI
@@ -260,32 +223,23 @@ agentmail mcp --as <claude|codex>       stdio MCP server (spawned by agent CLIs)
 
 Environment:
 
-- `AGENTMAIL_DIR` overrides the `.mail` directory location (defaults to
-  `./.mail` in the current working directory).
+- `AGENTMAIL_DIR` overrides the `.mail` directory location. Defaults to `./.mail` in the current working directory.
 
 ## How agents discover agentmail
 
-There are three signals that lead an agent to use these tools:
+Three signals lead an agent to use these tools:
 
-1. **MCP tool descriptions** ship with the server. When the agent starts, it
-   sees `inbox`, `pull`, `send`, `status` in its tool list,
-   each with a description that explains the mechanics and the
-   context-cost.
-2. **The conversation.** Most workflows start with the human saying
-   something like *"there's a prompt from <peer> in your inbox — check your
-   inbox."* The agent then calls `inbox` → `pull`.
-3. **Project instructions.** You can document the coordination contract in
-   `CLAUDE.md` / `AGENTS.md` / `.codex/AGENTS.md` so each agent knows when in
-   its own workflow it should pull, send a `report-back`, raise a
-   `blockers` block, etc.
+1. **MCP tool descriptions** ship with the server. When the agent starts, it sees `inbox`, `pull`, `send`, `status` in its tool list, each with a description that explains the mechanics and the context cost.
+2. **The conversation.** A typical session begins with you saying something like *"there's a prompt from <peer> in your inbox, check it."* The agent then calls `inbox` then `pull`.
+3. **Project instructions.** You can document the coordination contract in `CLAUDE.md` / `AGENTS.md` / `.codex/AGENTS.md` so each agent knows when in its own workflow it should pull, send a `report-back`, raise a `blockers` block, and so on.
 
-agentmail does not impose a workflow — it provides a substrate.
+agentmail doesn't impose a workflow. It provides a substrate.
 
 ## Architecture
 
 ```
 agentmail/
-  bin/agentmail                 CLI entry — routes subcommands
+  bin/agentmail                 CLI entry (routes subcommands)
   src/
     server/                    Bun + Hono daemon + WebSocket hub + SQLite
     mcp/                       stdio MCP server (the agent-facing surface)
@@ -299,17 +253,14 @@ agentmail/
 
 Per project, in `.mail/`:
 
-- `config.json` — port, default modes
-- `state.sqlite` — message log, agent state (mode + status)
-- `pid` — daemon process id (so `agentmail stop` works)
-- `mcp.log` — stderr from spawned MCP servers (stdout is reserved for the
-  MCP transport)
+- `config.json`: port, default modes
+- `state.sqlite`: message log, agent state (mode + status)
+- `pid`: daemon process id (so `agentmail stop` works)
+- `mcp.log`: stderr from spawned MCP servers (stdout is reserved for the MCP transport)
 
 ### Daemon endpoints
 
-REST under `/api/*` for the MCP client and CLI commands. WebSocket `/ws` for
-the TUI to subscribe to live events. Bound to `127.0.0.1` only — no remote
-access.
+REST under `/api/*` for the MCP client and CLI commands. WebSocket `/ws` for the TUI to subscribe to live events. Bound to `127.0.0.1` only. No remote access.
 
 ## Testing
 
@@ -317,10 +268,7 @@ access.
 bun test
 ```
 
-`tests/e2e.ts` spins up a fresh daemon in a temp directory, runs the MCP
-server as both agents over stdio, and asserts the full pending → release →
-pull cycle, auto-mode delivery, return-trip semantics, and the write-only
-status guarantee.
+`tests/e2e.ts` spins up a fresh daemon in a temp directory, runs the MCP server as both agents over stdio, and asserts the full pending → release → pull cycle, auto-mode delivery, return-trip semantics, and the write-only status guarantee.
 
 ## Troubleshooting
 
@@ -330,19 +278,16 @@ status guarantee.
 | Port collision on startup | Default port is `7777`. Edit `.mail/config.json` (`"port"` field) and restart. |
 | `agentmail start` says "already running" but nothing answers | Stale pid file. Delete `.mail/pid` and try again. |
 | MCP tool errors that don't show up anywhere | Check `.mail/mcp.log`. Stdout is reserved for the MCP transport, so all diagnostics go to the log file. |
-| Renamed the project / moved the `.mail` dir | Restart the agent CLI so it re-reads `AGENTMAIL_DIR`. |
+| Renamed the project or moved the `.mail` dir | Restart the agent CLI so it re-reads `AGENTMAIL_DIR`. |
 
 ## Non-goals
 
-- **No headless agent invocation.** This is a mailbox, not an orchestrator —
-  agents stay in their normal interactive sessions.
+- **No headless agent invocation.** This is a mailbox, not an orchestrator. Agents stay in their normal interactive sessions.
 - **No remote access.** Localhost only.
-- **No multi-conversation threading.** Reconstruct from `from`/`to`/`ts` if
-  you need it.
+- **No multi-conversation threading.** Reconstruct from `from`/`to`/`ts` if you need it.
 - **No web UI.** The terminal dashboard is the only UI.
-- **No authn/authz.** Anyone with local network access can hit the daemon.
-  Bind is `127.0.0.1` only.
+- **No authn/authz.** Anyone with local network access can hit the daemon. Bind is `127.0.0.1` only.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+MIT. See [LICENSE](./LICENSE).
