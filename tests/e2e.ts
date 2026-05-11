@@ -70,7 +70,9 @@ async function mcpCall(
   busDir: string,
   toolName: string,
   args: Record<string, unknown>,
+  options: { timeoutMs?: number } = {},
 ): Promise<JsonRpcResponse> {
+  const callTimeoutMs = options.timeoutMs ?? 3000;
   return new Promise((resolve, reject) => {
     const proc = spawn("bun", [BIN, "mcp", "--as", asAgent], {
       stdio: ["pipe", "pipe", "pipe"],
@@ -148,13 +150,11 @@ async function mcpCall(
     proc.stdin.write(JSON.stringify(init) + "\n");
     proc.stdin.write(JSON.stringify(initialized) + "\n");
     proc.stdin.write(JSON.stringify(call) + "\n");
-    // Safety: if no response after 3s, give up. The MCP server ignores
-    // stdin EOF on purpose (Codex compatibility) so we rely on SIGTERM
-    // via finalize() to actually shut it down.
+    // Safety: if no response within the configured timeout, give up.
     setTimeout(() => {
       if (settled) return;
       finalize(() => reject(new Error(`mcp timeout. stdout so far:\n${stdout}`)));
-    }, 3000);
+    }, callTimeoutMs);
   });
 }
 
@@ -328,6 +328,95 @@ async function main(): Promise<void> {
     r.assert(
       Boolean(selfRes.result?.isError),
       "cannot send to yourself",
+    );
+
+    // (10) bus_wait returns immediately when inbox is non-empty. Codex's
+    // inbox still has the auto-mode message from step (6).
+    const waitImmediate = await mcpCall(
+      "codex",
+      busDir,
+      "bus_wait",
+      { timeoutSec: 5 },
+      { timeoutMs: 3000 },
+    );
+    r.assert(
+      bodyText(waitImmediate).includes("auto test"),
+      "bus_wait returns immediately when inbox non-empty",
+      `got: ${bodyText(waitImmediate)}`,
+    );
+
+    // Drain codex's inbox so the next wait calls hit an empty starting state.
+    const drainList = await mcpCall("codex", busDir, "bus_inbox", {});
+    const drainIds = bodyText(drainList)
+      .split("\n")
+      .map((l) => l.match(/(01[A-Z0-9]{24})/)?.[1])
+      .filter((x): x is string => !!x);
+    for (const id of drainIds) {
+      await mcpCall("codex", busDir, "bus_pull", { id });
+    }
+
+    // (11) bus_wait times out cleanly when nothing arrives.
+    const waitTimeout = await mcpCall(
+      "codex",
+      busDir,
+      "bus_wait",
+      { timeoutSec: 1 },
+      { timeoutMs: 4000 },
+    );
+    r.assert(
+      bodyText(waitTimeout) === "timeout",
+      "bus_wait times out when no message arrives",
+      `got: ${bodyText(waitTimeout)}`,
+    );
+
+    // (12) bus_wait wakes when a new auto-mode message arrives mid-wait.
+    const waitWake = mcpCall(
+      "codex",
+      busDir,
+      "bus_wait",
+      { timeoutSec: 5 },
+      { timeoutMs: 8000 },
+    );
+    await Bun.sleep(300); // ensure the wait has subscribed
+    await mcpCall("claude", busDir, "bus_send", {
+      type: "note",
+      title: "wake up codex",
+      body: "ping",
+    });
+    const waitWakeRes = await waitWake;
+    r.assert(
+      bodyText(waitWakeRes).includes("wake up codex"),
+      "bus_wait wakes when a message arrives mid-wait",
+      `got: ${bodyText(waitWakeRes)}`,
+    );
+
+    // (13) bus_wait wakes when a held message is released (claude is MANUAL).
+    // Drain claude's pending → released first so we have a clean state.
+    // Send codex → claude (still MANUAL), get pending id, then wait + release.
+    const heldSend = await mcpCall("codex", busDir, "bus_send", {
+      type: "note",
+      title: "held for release",
+      body: "x",
+    });
+    const heldId = bodyText(heldSend).match(/(01[A-Z0-9]{24})/)?.[1] ?? "";
+    r.assert(
+      bodyText(heldSend).includes("status: pending"),
+      "setup: codex → claude is pending while claude MANUAL",
+    );
+    const waitRelease = mcpCall(
+      "claude",
+      busDir,
+      "bus_wait",
+      { timeoutSec: 5 },
+      { timeoutMs: 8000 },
+    );
+    await Bun.sleep(300);
+    await http(`${base}/api/release`, "POST", { id: heldId });
+    const waitReleaseRes = await waitRelease;
+    r.assert(
+      bodyText(waitReleaseRes).includes("held for release"),
+      "bus_wait wakes when a pending message is released",
+      `got: ${bodyText(waitReleaseRes)}`,
     );
   } catch (err) {
     r.fail("test threw", err instanceof Error ? err.message : String(err));

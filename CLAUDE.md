@@ -30,7 +30,7 @@ see [`README.md`](./README.md).
 bin/agentbus.ts         CLI entry — routes subcommands
 src/
   server/               Bun.serve + Hono routes + WebSocket hub + SQLite store
-  mcp/                  stdio MCP server + bus_inbox/pull/send/status tools
+  mcp/                  stdio MCP server + bus_inbox/wait/pull/send/status tools
   tui/                  Ink app (components + hooks + REST/WS client)
   cli/                  init / start / stop / mode / log / send / status / tui / mcp
   shared/               AgentId / Message / BusEvent / config resolver / ulid
@@ -45,14 +45,33 @@ tests/e2e.ts            spawns a fresh daemon, talks MCP as both agents,
 - **Never** add a tool that pushes content into an agent's context. The
   agent's call is the only path. `bus_pull` is the explicit "spend context
   here" act.
-- **Never** add a `bus_wait` / long-poll / streaming tool. Agents pull when
-  they choose to, not on a schedule.
-- `bus_inbox` returns **headers only**. No bodies, no edits, no log entries.
-  If you find yourself wanting to enrich it, stop and reconsider.
+- `bus_inbox` and `bus_wait` return **headers only**. No bodies, no edits,
+  no log entries. If you find yourself wanting to enrich them, stop and
+  reconsider.
 - `bus_status` is write-only. Any tool that writes user-visible state to the
   server must not return that state back into agent context.
 - Anything an agent calls returns the smallest payload that satisfies the
   contract.
+
+### bus_wait (long-poll) — explicitly allowed
+
+The original design forbade a `bus_wait` tool on the grounds that it
+violates pull-only context discipline. We reversed that: the alternative
+(periodic polling via `bus_inbox` from inside `CLAUDE.md`/`AGENTS.md`
+instructions) burns more context than a single long-lived blocking call.
+
+Rules for `bus_wait`:
+
+- Returns the same header listing as `bus_inbox` — never bodies.
+- Server caps `timeoutSec` at 1800 (30 min). The cap lives in
+  `src/server/routes.ts`.
+- Wakes only when a message addressed to the caller becomes *visible* in
+  its inbox (released or auto-released). Pending-to-self events must not
+  wake the waiter.
+- Long-poll subscription lives in `src/server/events.ts` (`hub.subscribe`).
+  It is in-process only; never expose it over the wire as its own channel.
+- If the HTTP client disconnects, the listener must unsubscribe — leaks
+  here are silent.
 
 ### Mode gating is server-side
 
@@ -100,7 +119,7 @@ tests/e2e.ts            spawns a fresh daemon, talks MCP as both agents,
 Before reporting any non-trivial change complete:
 
 1. `bunx tsc --noEmit` — typecheck clean.
-2. `bun tests/e2e.ts` — all 13 assertions green.
+2. `bun tests/e2e.ts` — all assertions green.
 3. Manual smoke if you touched the TUI:
    ```bash
    agentbus init   # in /tmp/somewhere

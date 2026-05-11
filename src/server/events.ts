@@ -7,8 +7,11 @@ interface WsData {
 
 export type BusWs = ServerWebSocket<WsData>;
 
+type EventListener = (event: BusEvent) => void;
+
 class WsHub {
   private clients = new Set<BusWs>();
+  private listeners = new Set<EventListener>();
 
   add(ws: BusWs): void {
     this.clients.add(ws);
@@ -18,6 +21,15 @@ class WsHub {
     this.clients.delete(ws);
   }
 
+  // In-process subscription used by /api/wait long-polls. Returns an
+  // unsubscribe function. Listeners must be cheap and non-throwing.
+  subscribe(fn: EventListener): () => void {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  }
+
   broadcast(event: BusEvent): void {
     const payload = JSON.stringify(event);
     for (const ws of this.clients) {
@@ -25,6 +37,13 @@ class WsHub {
         ws.send(payload);
       } catch {
         // ignore — closed clients are removed by the close handler
+      }
+    }
+    for (const fn of this.listeners) {
+      try {
+        fn(event);
+      } catch {
+        // a misbehaving listener must not break the broadcast loop
       }
     }
   }

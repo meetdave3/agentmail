@@ -66,6 +66,17 @@ export class BusClient {
     return r.inbox;
   }
 
+  async wait(
+    agent: AgentId,
+    timeoutSec: number,
+  ): Promise<{ inbox: InboxEntry[]; timedOut: boolean }> {
+    // No client-side fetch timeout — the server caps at 1800s and returns
+    // before then. The MCP host's own tool-call timeout is the ultimate ceiling.
+    return await this.get<{ inbox: InboxEntry[]; timedOut: boolean }>(
+      `/api/wait?agent=${encodeURIComponent(agent)}&timeoutSec=${timeoutSec}`,
+    );
+  }
+
   async pull(agent: AgentId, id: string): Promise<Message> {
     const r = await this.post<{ message: Message }>(`/api/pull`, { agent, id });
     return r.message;

@@ -52,6 +52,42 @@ export function registerBusTools(
   );
 
   server.registerTool(
+    "bus_wait",
+    {
+      title: "Wait for inbox messages",
+      description:
+        "Block until a message addressed to you is visible in your inbox, or the timeout elapses. Returns the same header listing as bus_inbox (id, from, ts, title, type — no bodies). If your inbox already has messages, returns immediately. Use this to coordinate with the other agent without polling. Default timeout 30 minutes.",
+      inputSchema: {
+        timeoutSec: z
+          .number()
+          .int()
+          .min(1)
+          .max(1800)
+          .optional()
+          .describe(
+            "Max seconds to wait. Default 1800 (30 minutes). Capped at 1800.",
+          ),
+      },
+    },
+    async ({ timeoutSec }): Promise<CallToolResult> => {
+      try {
+        const sec = timeoutSec ?? 1800;
+        const { inbox, timedOut } = await client.wait(me, sec);
+        if (inbox.length === 0) {
+          return textResult(timedOut ? "timeout" : "inbox empty");
+        }
+        const lines = inbox.map(
+          (e) =>
+            `- ${e.id} · from=${e.from} · type=${e.type} · ${new Date(e.ts).toISOString()} · ${e.title}`,
+        );
+        return textResult(lines.join("\n"));
+      } catch (err) {
+        return errorResult(toErr(err));
+      }
+    },
+  );
+
+  server.registerTool(
     "bus_pull",
     {
       title: "Pull a message body",

@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import {
   type AgentId,
   type AgentMode,
+  type InboxEntry,
   type Message,
   type MessageEdit,
   type MessageType,
@@ -114,6 +115,63 @@ export function createRoutes(store: Store): Hono {
     const agent = c.req.query("agent");
     if (!isAgentId(agent)) return c.json({ error: "agent query param required" }, 400);
     return c.json({ inbox: store.getInboxFor(agent) });
+  });
+
+  // Long-poll: hold the connection until a message addressed to `agent` is
+  // visible in its inbox, or until `timeoutSec` elapses (capped at 1800).
+  // Returns the same shape as /api/inbox plus a `timedOut` boolean. If the
+  // inbox is already non-empty, returns immediately.
+  app.get("/api/wait", async (c) => {
+    const agent = c.req.query("agent");
+    if (!isAgentId(agent)) return c.json({ error: "agent query param required" }, 400);
+
+    const raw = c.req.query("timeoutSec");
+    const parsed = raw ? parseInt(raw, 10) : 1800;
+    const timeoutSec = Math.max(
+      1,
+      Math.min(1800, Number.isFinite(parsed) ? parsed : 1800),
+    );
+
+    const initial = store.getInboxFor(agent);
+    if (initial.length > 0) {
+      return c.json({ inbox: initial, timedOut: false });
+    }
+
+    const result = await new Promise<{ inbox: InboxEntry[]; timedOut: boolean }>(
+      (resolve) => {
+        let done = false;
+        const finish = (timedOut: boolean) => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          unsub();
+          resolve({ inbox: store.getInboxFor(agent), timedOut });
+        };
+        const timer = setTimeout(() => finish(true), timeoutSec * 1000);
+        const unsub = hub.subscribe((ev) => {
+          // Wake on anything that could make the inbox non-empty for this
+          // agent: a new released message addressed here, or a release of
+          // an existing pending message.
+          if (
+            ev.kind === "message:created" &&
+            ev.message.to === agent &&
+            ev.message.status === "released"
+          ) {
+            finish(false);
+            return;
+          }
+          if (ev.kind === "message:released") {
+            const msg = store.getMessage(ev.id);
+            if (msg && msg.to === agent) finish(false);
+          }
+        });
+        // If the client disconnects (e.g. agent CLI cancelled the tool call),
+        // unsubscribe so we don't leak listeners.
+        const signal = c.req.raw.signal as AbortSignal | undefined;
+        signal?.addEventListener("abort", () => finish(true));
+      },
+    );
+    return c.json(result);
   });
 
   app.post("/api/pull", async (c) => {

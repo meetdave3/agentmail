@@ -52,8 +52,9 @@ gets through.
   call `bus_inbox` (terse headers, no bodies) to see what's queued, then
   `bus_pull <id>` to deliberately spend context on one message. This mirrors
   the discipline of copy-paste.
-- **Tiny tool surface.** Four MCP tools, total. No `bus_wait`, no streaming,
-  no chatty polling.
+- **Tiny tool surface.** Five MCP tools, total. The only blocking one is
+  `bus_wait`, which long-polls for the next visible message — a single
+  tool call rather than a polling loop.
 - **Human-gated by default.** New agents start in `MANUAL` mode — every
   inbound message is held until the human releases it (with optional edits
   and appended notes).
@@ -132,13 +133,11 @@ agentbus stop
 
 | Tool         | Purpose |
 | ------------ | ------- |
-| `bus_inbox`  | List headers of messages addressed to you and currently pullable. Returns `id`, `from`, `ts`, `title`, `type` only. **Never bodies.** Cheap on context. |
+| `bus_inbox`  | List headers of messages addressed to you and currently pullable. Returns `id`, `from`, `ts`, `title`, `type` only. **Never bodies.** Cheap on context. Returns instantly. |
+| `bus_wait`   | Block until your inbox has at least one visible message, or `timeoutSec` elapses (default 1800, capped at 1800). Returns the same headers as `bus_inbox` — never bodies. If your inbox is already non-empty, returns immediately. Use this instead of a polling loop. |
 | `bus_pull`   | Fetch the full body of one message by id and mark it consumed. The only path a body enters your context. |
 | `bus_send`   | Send a tagged message to the other agent (or to the human). Defaults `to` to the peer. |
 | `bus_status` | Set a short "what I'm working on" string for the dashboard. Write-only — the value is never echoed back into your context. |
-
-There is intentionally no `bus_wait` / long-poll tool. Agents pull when
-they're ready, not on a schedule.
 
 ### Message types
 
@@ -244,6 +243,25 @@ There are three signals that lead an agent to use these tools:
    `blockers` block, etc.
 
 The bus does not impose a workflow — it provides a substrate.
+
+### Bootstrapping a new project's instructions
+
+If you want to wire agentbus into a new project's `CLAUDE.md` / `AGENTS.md`
+without writing the snippets by hand, point a setup LLM at this URL:
+
+```
+https://raw.githubusercontent.com/meetdave3/agentbus/main/llms.txt
+```
+
+That file is a self-contained bootstrap guide aimed at an LLM. Open a fresh
+session in the project you want to wire up and say:
+
+> Read <https://raw.githubusercontent.com/meetdave3/agentbus/main/llms.txt>
+> and follow it to update this project's CLAUDE.md and AGENTS.md.
+
+The file documents the five MCP tools, the implementer ↔ reviewer loop, and
+the exact snippets to merge into each agent's instruction file. It's
+versioned in this repo, so the link is always current.
 
 ## Architecture
 
