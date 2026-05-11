@@ -4,3 +4,4 @@ bun.lockb
 *.log
 .bus/
 dist/
+bin/mcp-entry.js

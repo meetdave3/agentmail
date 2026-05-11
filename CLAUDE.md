@@ -9,14 +9,17 @@ see [`README.md`](./README.md).
 - A local, single-process, pull-only message bus between two AI coding agents.
 - Stack: Bun + Hono (HTTP + WebSocket), `bun:sqlite` for state, Ink (React for
   the terminal) for the TUI, `@modelcontextprotocol/sdk` for the stdio MCP
-  surface.
+  surface. The MCP stdio entry runs under **Node**, not Bun (see
+  `src/cli/mcp.ts` for why — Bun buffers stdout while a stdin "data" listener
+  is active, which breaks the MCP handshake).
 - Per-project state lives in `./.bus/` (sqlite + pid + config + mcp log).
 - Bind is `127.0.0.1` only. No remote access. No multi-user. No authn/authz.
 
 ## Commands
 
-- Install:               `bun install`
+- Install:               `bun install`  (postinstall builds `bin/mcp-entry.js`)
 - Typecheck:             `bunx tsc --noEmit`
+- Build MCP entry:       `bun run build:mcp`  (regenerates `bin/mcp-entry.js`)
 - End-to-end test:       `bun tests/e2e.ts`  (also `bun test`)
 - Run the CLI locally:   `bun run bin/agentbus.ts <command>`
 - Globally link for dev: `bun link`  (then `agentbus <command>` works anywhere)

@@ -62,7 +62,8 @@ gets through.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) ≥ 1.2
+- [Bun](https://bun.sh) ≥ 1.2 (daemon + TUI)
+- [Node.js](https://nodejs.org) ≥ 18 (the stdio MCP server runs under Node — see [`src/cli/mcp.ts`](./src/cli/mcp.ts) for why)
 - A terminal that supports 256 colors (any modern one)
 - One or more MCP-compatible agent CLIs ([Claude
   Code](https://claude.ai/code), [OpenAI

@@ -38,26 +38,23 @@ export async function startMcpServer(me: AgentId): Promise<void> {
 
   const transport = new StdioServerTransport();
 
-  // Hold the process open until we receive a termination signal. We do NOT
-  // exit on transport.onclose — some MCP hosts (notably the Codex CLI) spawn
-  // the server with stdin closed or set to /dev/null, and only attach the
-  // real pipe once they've sent `initialize`. If we exit on the first
-  // stdin EOF, the host sees a startup timeout. Letting the parent SIGTERM
-  // us on shutdown is the only signal we trust.
+  // Exit when the parent (Codex / Claude) closes our stdin or signals us.
+  // Both are normal MCP-stdio shutdown paths; honouring stdin EOF avoids
+  // accumulating orphaned servers when the host can't deliver a signal
+  // (e.g. after re-parenting to init).
   let resolveExit: () => void = () => undefined;
   const exitWhen = new Promise<void>((resolve) => {
     resolveExit = resolve;
   });
-  transport.onclose = () => {
-    log("transport close (ignored — waiting for signal)");
-  };
-  const onSignal = (sig: NodeJS.Signals) => {
-    log(`signal ${sig}`);
+  const shutdown = (reason: string) => {
+    log(`shutdown: ${reason}`);
     resolveExit();
   };
-  process.on("SIGTERM", onSignal);
-  process.on("SIGINT", onSignal);
-  process.on("SIGHUP", onSignal);
+  process.stdin.once("end", () => shutdown("stdin end"));
+  process.stdin.once("close", () => shutdown("stdin close"));
+  process.on("SIGTERM", (sig) => shutdown(`signal ${sig}`));
+  process.on("SIGINT", (sig) => shutdown(`signal ${sig}`));
+  process.on("SIGHUP", (sig) => shutdown(`signal ${sig}`));
 
   await server.connect(transport);
   log("mcp ready");

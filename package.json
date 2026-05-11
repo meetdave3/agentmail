@@ -39,7 +39,9 @@
   "scripts": {
     "dev": "bun run bin/agentbus.ts",
     "typecheck": "bunx tsc --noEmit",
-    "test": "bun tests/e2e.ts"
+    "build:mcp": "bun build src/mcp/entry.ts --target=node --outfile=bin/mcp-entry.js",
+    "postinstall": "bun run build:mcp",
+    "test": "bun run build:mcp && bun tests/e2e.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
