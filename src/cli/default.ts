@@ -12,7 +12,7 @@ import { runTui } from "./tui.ts";
 /**
  * `agentmail` with no subcommand — the one-shot entrypoint.
  *
- * 1. If this project has no .bus/ yet → run init and exit. The user pastes
+ * 1. If this project has no .mail/ yet → run init and exit. The user pastes
  *    the printed MCP snippets, then runs `agentmail` again.
  * 2. If the daemon isn't running → start it detached.
  * 3. Wait until the daemon is reachable.

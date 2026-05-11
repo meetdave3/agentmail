@@ -11,7 +11,7 @@ export async function runStart(argv: string[]): Promise<void> {
   if (existsSync(paths.pidPath)) {
     const pid = parseInt(readFileSync(paths.pidPath, "utf8").trim(), 10);
     if (pid && processAlive(pid)) {
-      console.error(chalk.yellow(`bus already running (pid ${pid})`));
+      console.error(chalk.yellow(`agentmail already running (pid ${pid})`));
       return;
     }
   }
@@ -26,7 +26,7 @@ export async function runStart(argv: string[]): Promise<void> {
       stdio: "ignore",
     });
     child.unref();
-    console.error(chalk.green(`bus started in background (pid ${child.pid})`));
+    console.error(chalk.green(`agentmail started in background (pid ${child.pid})`));
     return;
   }
 

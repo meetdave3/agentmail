@@ -5,7 +5,7 @@ import { resolvePaths } from "../shared/config.ts";
 export async function runStop(): Promise<void> {
   const paths = resolvePaths();
   if (!existsSync(paths.pidPath)) {
-    console.error(chalk.yellow("no pid file — bus not running here"));
+    console.error(chalk.yellow("no pid file — agentmail not running here"));
     return;
   }
   const pid = parseInt(readFileSync(paths.pidPath, "utf8").trim(), 10);

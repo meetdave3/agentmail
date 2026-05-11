@@ -19,8 +19,8 @@ ${chalk.bold("Usage")}
 ${chalk.bold("Commands")}
   ${chalk.dim("(no command)")}                  Init if needed, start the daemon, open the TUI
   init                          Scaffold ./.mail and print MCP snippets
-  start [--detach]              Start the bus daemon
-  stop                          Stop the bus daemon
+  start [--detach]              Start the agentmail daemon
+  stop                          Stop the agentmail daemon
   tui                           Open the Ink dashboard (daemon must be running)
   log [--follow]                Tail the message log
   mode <agent> <auto|manual>    Set an agent's inbound mode

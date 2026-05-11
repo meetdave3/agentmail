@@ -24,7 +24,7 @@ export async function startMcpServer(me: AgentId): Promise<void> {
   const client = new BusClient(paths);
   const reachable = await client.health();
   if (!reachable) {
-    log(`warning: bus daemon not reachable. Run \`agentmail start\` from the project root.`);
+    log(`warning: agentmail daemon not reachable. Run \`agentmail start\` from the project root.`);
     // We still start the MCP server so the agent gets a clean tool error
     // rather than a hard failure to launch.
   }
