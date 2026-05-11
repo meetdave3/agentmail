@@ -36,18 +36,24 @@ edit, or drop any message before it lands on the other side.
 
 ## Why
 
-Multi-agent coding workflows usually have one agent plan and another
-implement. Today, the human in the middle pastes structured prompts and
-diffs between two CLI windows. That works, but:
+You probably started with one agent. Claude (or Codex, or whichever) ships
+fast — but it cuts corners. Tests it didn't run. Edge cases it hand-waved.
+Features marked done that aren't quite.
 
-- Every relay step is slow and lossy.
-- There's no live picture of who's doing what.
-- The human has no easy way to edit, gate, or annotate a message in flight.
-- Tab-switching breaks flow.
+The fix isn't a sharper prompt. You need a second pair of eyes on the
+output. So you bring in another LLM with a different temperament — one
+that's stricter, more pedantic, the kind that actually reads the spec.
 
-`agentmail` replaces the copy step with a tiny local daemon. Agents read and
-write via five MCP tools. The human watches a dashboard and decides what
-gets through.
+The first thing you try is letting one agent spawn the other as a CLI
+tool. It kind of works — except both contexts balloon into tool calls
+*talking about* the code instead of writing it.
+
+Turns out the two don't need to live in each other's heads. They just
+need to pass notes.
+
+That's agentmail. Each agent gets an inbox. They send structured messages,
+pull them when they're ready, and spend the rest of their context on real
+work. You watch from a live dashboard and gate what gets through.
 
 ## Design constraints
 
