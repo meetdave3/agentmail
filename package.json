@@ -1,6 +1,6 @@
 {
   "name": "@meetdave/agentmail",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local pull-only message bus for AI coding agents (Claude, Codex), with an Ink TUI dashboard and human-gated review.",
   "type": "module",
   "license": "MIT",
