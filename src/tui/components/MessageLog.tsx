@@ -17,14 +17,14 @@ function statusBadge(status: Message["status"]): React.ReactElement {
       );
     case "released":
       return (
-        <Text color="cyan" inverse>
-          {" RELE "}
+        <Text color="gray" bold>
+          {"  ✓   "}
         </Text>
       );
     case "consumed":
       return (
-        <Text color="green" inverse>
-          {" READ "}
+        <Text color="blueBright" bold>
+          {"  ✓✓  "}
         </Text>
       );
     case "dropped":
