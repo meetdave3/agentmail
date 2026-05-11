@@ -142,6 +142,24 @@ agent calls don't break. To fully stop:
 agentmail stop
 ```
 
+## Wire it into your project's instructions
+
+Each agent needs to know how to use agentmail. There's a bootstrap guide
+written for an LLM to read — point a setup session at:
+
+```
+https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt
+```
+
+Open a fresh session in the project you want to wire up and say:
+
+> Read <https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt>
+> and follow it to update this project's CLAUDE.md and AGENTS.md.
+
+The file documents the five MCP tools, the implementer ↔ reviewer loop, and
+the exact snippets to merge into each agent's instruction file. It's
+versioned in this repo — the link is always current.
+
 ## MCP tools (the entire surface)
 
 | Tool         | Purpose |
@@ -164,7 +182,7 @@ agentmail stop
 - `commit-pr-prompt` — a final "create commits and a PR" instruction
 - `note` — anything else
 
-The bus does not enforce a workflow — these labels are advisory. Use whichever
+agentmail does not enforce a workflow — these labels are advisory. Use whichever
 matches the contract you and the agents have agreed on.
 
 ## Modes
@@ -239,7 +257,7 @@ Environment:
 - `AGENTMAIL_DIR` overrides the `.mail` directory location (defaults to
   `./.mail` in the current working directory).
 
-## How agents discover the bus
+## How agents discover agentmail
 
 There are three signals that lead an agent to use these tools:
 
@@ -248,33 +266,14 @@ There are three signals that lead an agent to use these tools:
    each with a description that explains the mechanics and the
    context-cost.
 2. **The conversation.** Most workflows start with the human saying
-   something like *"there's a prompt from <peer> on the bus — check your
+   something like *"there's a prompt from <peer> in your inbox — check your
    inbox."* The agent then calls `inbox` → `pull`.
 3. **Project instructions.** You can document the coordination contract in
    `CLAUDE.md` / `AGENTS.md` / `.codex/AGENTS.md` so each agent knows when in
    its own workflow it should pull, send a `report-back`, raise a
    `blockers` block, etc.
 
-The bus does not impose a workflow — it provides a substrate.
-
-### Bootstrapping a new project's instructions
-
-If you want to wire agentmail into a new project's `CLAUDE.md` / `AGENTS.md`
-without writing the snippets by hand, point a setup LLM at this URL:
-
-```
-https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt
-```
-
-That file is a self-contained bootstrap guide aimed at an LLM. Open a fresh
-session in the project you want to wire up and say:
-
-> Read <https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt>
-> and follow it to update this project's CLAUDE.md and AGENTS.md.
-
-The file documents the five MCP tools, the implementer ↔ reviewer loop, and
-the exact snippets to merge into each agent's instruction file. It's
-versioned in this repo, so the link is always current.
+agentmail does not impose a workflow — it provides a substrate.
 
 ## Architecture
 
@@ -321,17 +320,17 @@ status guarantee.
 
 | Symptom | Likely cause / fix |
 | ------- | ------------------ |
-| Agent's tool errors say "daemon not reachable" | The daemon isn't running for this project. `cd` to the project root and run `agentmail`. The MCP server resolves the bus by reading `./.mail/config.json` (or `AGENTMAIL_DIR`). |
+| Agent's tool errors say "daemon not reachable" | The daemon isn't running for this project. `cd` to the project root and run `agentmail`. The MCP server resolves the daemon by reading `./.mail/config.json` (or `AGENTMAIL_DIR`). |
 | Port collision on startup | Default port is `7777`. Edit `.mail/config.json` (`"port"` field) and restart. |
 | `agentmail start` says "already running" but nothing answers | Stale pid file. Delete `.mail/pid` and try again. |
 | MCP tool errors that don't show up anywhere | Check `.mail/mcp.log`. Stdout is reserved for the MCP transport, so all diagnostics go to the log file. |
-| Renamed the project / moved the `.bus` dir | Restart the agent CLI so it re-reads `AGENTMAIL_DIR`. |
+| Renamed the project / moved the `.mail` dir | Restart the agent CLI so it re-reads `AGENTMAIL_DIR`. |
 
 ## Non-goals
 
-- **No headless agent invocation.** This is a bus, not an orchestrator —
+- **No headless agent invocation.** This is a mailbox, not an orchestrator —
   agents stay in their normal interactive sessions.
-- **No remote bus.** Localhost only.
+- **No remote access.** Localhost only.
 - **No multi-conversation threading.** Reconstruct from `from`/`to`/`ts` if
   you need it.
 - **No web UI.** The terminal dashboard is the only UI.
