@@ -4,9 +4,11 @@
 
 **Two AI coding agents. One shared inbox. A dashboard so you can watch them work.**
 
-I built this for a specific habit: using Claude to write code and Codex to review it. Claude is fast and creative. Codex is strict and pedantic. They send each other prompts, reports, and review notes through agentmail. I watch from a terminal dashboard and either let messages through, edit them, or drop them before they reach the other side.
+agentmail is a local message-bus daemon (Bun, SQLite, [MCP](https://modelcontextprotocol.io)) that lets two separate agent processes hand work back and forth in their own context windows. It's infrastructure: a transport, not a methodology. You bring the workflow.
 
-Your pair can be anything that speaks [MCP](https://modelcontextprotocol.io). The names above are just mine.
+Here's the one I use it for. Claude writes the code, Codex reviews it. Claude is fast and creative. Codex is strict and pedantic. They send each other prompts, reports, and review notes through agentmail. I watch from a terminal dashboard and either let messages through, edit them, or drop them before they reach the other side.
+
+Your pair can be anything that speaks MCP. Claude and Codex is just mine.
 
 ```
 ┌──────────────┐                       ┌──────────────┐
@@ -115,7 +117,7 @@ Add `.mail/` to your project's `.gitignore`. It holds local sqlite state and a p
 
 Start your agent CLIs from the same project directory. They'll automatically expose the five MCP tools.
 
-**Shutdown.** Closing the TUI (`q`) leaves the daemon running so in-flight agent calls don't break. To fully stop:
+**Shutdown.** The bare `agentmail` command owns the daemon it starts: pressing `q` (or Ctrl+C) in the TUI stops both. If the daemon was already running when you opened the TUI (because you started it separately with `agentmail start`), quitting only closes the TUI and the daemon keeps running. To stop a daemon you didn't start in this session:
 
 ```bash
 agentmail stop
