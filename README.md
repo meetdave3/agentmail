@@ -186,6 +186,20 @@ g         release every pending message
 q         quit
 ```
 
+### Live log indicators
+
+Each row in the live log shows a delivery state, WhatsApp-style:
+
+```
+HELD    held in the manual-mode gate — recipient's bus_inbox can't see it yet
+✓       released — visible in the recipient's bus_inbox, but they haven't pulled the body
+✓✓      consumed — the recipient called bus_pull and the body entered their context
+DROP    dropped — you rejected it; it never reached the recipient
+```
+
+The same row updates in place as a message progresses. No new row is added
+when an agent reads.
+
 ## Commands
 
 The everyday command is just `agentbus` — it auto-inits, ensures the daemon is
