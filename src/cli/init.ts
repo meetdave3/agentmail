@@ -23,8 +23,8 @@ export async function runInit(): Promise<void> {
     {
       mcpServers: {
         agentbus: {
-          command: "bun",
-          args: ["x", "agentbus", "mcp", "--as", "claude"],
+          command: "agentbus",
+          args: ["mcp", "--as", "claude"],
           env: { AGENTBUS_DIR: paths.busDir },
         },
       },
@@ -33,10 +33,15 @@ export async function runInit(): Promise<void> {
     2,
   );
 
+  // Codex's MCP client needs a generous startup_timeout_sec — the default 10s
+  // is tight when other MCP servers are starting in parallel. 30s matches
+  // what other production MCP entries use (e.g. mongodb-mcp-server).
   const codexSnippet = [
     "[mcp_servers.agentbus]",
-    'command = "bun"',
-    'args = ["x", "agentbus", "mcp", "--as", "codex"]',
+    'command = "agentbus"',
+    'args = ["mcp", "--as", "codex"]',
+    "startup_timeout_sec = 30",
+    "",
     "[mcp_servers.agentbus.env]",
     `AGENTBUS_DIR = "${paths.busDir}"`,
   ].join("\n");
@@ -47,17 +52,18 @@ ${chalk.bold(`agentbus initialized for "${project}"`)}
   db        : ${paths.dbPath}
 
 ${chalk.bold("Next steps")}
-  1. Start the daemon:        ${chalk.cyan("agentbus start")}
-  2. Open the dashboard:      ${chalk.cyan("agentbus tui")}
-  3. Wire Claude — paste into ${chalk.cyan(".mcp.json")} (project root):
+  1. Wire Claude — paste into ${chalk.cyan(".mcp.json")} (project root):
 
 ${indent(claudeSnippet)}
 
-  4. Wire Codex — paste into ${chalk.cyan(".codex/config.toml")} (or merge into existing):
+  2. Wire Codex — paste into ${chalk.cyan(".codex/config.toml")} (or merge into existing):
 
 ${indent(codexSnippet)}
 
-  5. In each agent session, the bus exposes these MCP tools:
+  3. Run ${chalk.cyan("agentbus")} again. The daemon starts in the background and the dashboard opens.
+
+  4. Restart any Claude or Codex sessions you had open before pasting the snippets — they need
+     to re-read the MCP config. New sessions started in this directory will see four bus tools:
        ${chalk.cyan("bus_inbox")}   — list headers of messages awaiting you (no bodies)
        ${chalk.cyan("bus_pull")}    — fetch a single message body by id (spends context)
        ${chalk.cyan("bus_send")}    — send a message to the other agent

@@ -188,16 +188,23 @@ q         quit
 
 ## Commands
 
+The everyday command is just `agentbus` — it auto-inits, ensures the daemon is
+running, and opens the dashboard. The rest are escape hatches.
+
 ```
-agentbus init                          scaffold ./.bus and print MCP snippets
-agentbus start [--detach]              start the daemon (default: foreground)
-agentbus stop                          stop the daemon
-agentbus tui                           open the Ink dashboard
+agentbus                               init if needed, ensure daemon, open TUI
+agentbus stop                          stop the background daemon
 agentbus log [--follow]                tail the message log to stdout
 agentbus mode <agent> <auto|manual>    flip an agent's inbound mode
 agentbus send <to> <type> <title> [-]  send a message as `user` (body via stdin or arg)
 agentbus status <agent> <text...>      set an agent's "working on" string
-agentbus mcp --as <claude|codex>       run the stdio MCP server (used by agent CLIs)
+agentbus help                          show usage
+
+Advanced / scripting:
+agentbus init                          scaffold ./.bus and print MCP snippets only
+agentbus start [--detach]              start the daemon directly (no TUI)
+agentbus tui                           open just the TUI (assumes daemon is up)
+agentbus mcp --as <claude|codex>       stdio MCP server (spawned by agent CLIs)
 ```
 
 Environment:
@@ -268,7 +275,7 @@ status guarantee.
 
 | Symptom | Likely cause / fix |
 | ------- | ------------------ |
-| Agent's tool errors say "daemon not reachable" | The daemon isn't running for this project. `cd` to the project root and run `agentbus start`. The MCP server resolves the bus by reading `./.bus/config.json` (or `AGENTBUS_DIR`). |
+| Agent's tool errors say "daemon not reachable" | The daemon isn't running for this project. `cd` to the project root and run `agentbus`. The MCP server resolves the bus by reading `./.bus/config.json` (or `AGENTBUS_DIR`). |
 | Port collision on startup | Default port is `7777`. Edit `.bus/config.json` (`"port"` field) and restart. |
 | `agentbus start` says "already running" but nothing answers | Stale pid file. Delete `.bus/pid` and try again. |
 | MCP tool errors that don't show up anywhere | Check `.bus/mcp.log`. Stdout is reserved for the MCP transport, so all diagnostics go to the log file. |
