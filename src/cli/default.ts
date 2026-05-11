@@ -18,8 +18,10 @@ import { runTui } from "./tui.ts";
  * 3. Wait until the daemon is reachable.
  * 4. Launch the TUI (foreground; blocks until quit).
  *
- * The daemon survives TUI exit on purpose: closing the dashboard mid-task
- * must not break agents in flight. Use `agentmail stop` to fully shut down.
+ * If this invocation started the daemon, Ctrl+C in the TUI also stops the
+ * daemon — the bare `agentmail` shell owns its lifecycle. If the daemon
+ * was already running (started separately via `agentmail start`), leave it
+ * alone on exit.
  */
 export async function runDefault(): Promise<void> {
   const paths = resolvePaths();
@@ -38,7 +40,8 @@ export async function runDefault(): Promise<void> {
   const url = busUrl(config.port);
 
   const alreadyHealthy = await isHealthy(url);
-  if (!alreadyHealthy) {
+  const weStartedDaemon = !alreadyHealthy;
+  if (weStartedDaemon) {
     cleanStalePid(paths.pidPath);
     await runStart(["--detach"]);
     const ready = await waitForHealth(url, 5000);
@@ -51,11 +54,39 @@ export async function runDefault(): Promise<void> {
 
   await runTui();
 
-  console.error(
-    chalk.dim(
-      `\ndaemon still running in the background. \`agentmail stop\` to shut it down.`,
-    ),
-  );
+  if (weStartedDaemon) {
+    stopDaemon(paths.pidPath);
+  } else {
+    console.error(
+      chalk.dim(
+        `\ndaemon still running in the background. \`agentmail stop\` to shut it down.`,
+      ),
+    );
+  }
+}
+
+function stopDaemon(pidPath: string): void {
+  if (!existsSync(pidPath)) return;
+  const pid = parseInt(readFileSync(pidPath, "utf8").trim(), 10);
+  if (!pid) {
+    try {
+      unlinkSync(pidPath);
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  try {
+    process.kill(pid, "SIGTERM");
+    console.error(chalk.dim(`daemon stopped (pid ${pid})`));
+  } catch {
+    // already gone
+  }
+  try {
+    unlinkSync(pidPath);
+  } catch {
+    // ignore
+  }
 }
 
 async function isHealthy(url: string): Promise<boolean> {

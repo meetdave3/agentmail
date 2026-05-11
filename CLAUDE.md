@@ -21,13 +21,13 @@ see [`README.md`](./README.md).
 - Typecheck:             `bunx tsc --noEmit`
 - Build MCP entry:       `bun run build:mcp`  (regenerates `bin/mcp-entry.js`)
 - End-to-end test:       `bun tests/e2e.ts`  (also `bun test`)
-- Run the CLI locally:   `bun run bin/agentmail.ts <command>`
+- Run the CLI locally:   `bun run bin/agentmail <command>`
 - Globally link for dev: `bun link`  (then `agentmail <command>` works anywhere)
 
 ## Layout
 
 ```
-bin/agentmail.ts         CLI entry — routes subcommands
+bin/agentmail            CLI entry — routes subcommands
 src/
   server/               Bun.serve + Hono routes + WebSocket hub + SQLite store
   mcp/                  stdio MCP server + inbox/wait/pull/send/status tools

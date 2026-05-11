@@ -82,6 +82,14 @@ below assume that split. Adapt the role labels if the user's setup differs.
 - **Never** start work without `pull`. Headers alone are not the prompt.
 - **Never** poll `inbox` in a loop. Use `wait` — it's one blocking
   call instead of many context-spending ones.
+- **`wait` is the default blocking primitive.** Prefer it over `inbox`
+  even at session start — it returns immediately if the inbox is non-empty.
+- **Avoid wake+pull cycles that don't transfer actionable work.** If you
+  have nothing to hand the peer, don't send a message just to close the
+  loop.
+- **`status` is human-visible only.** It is not peer communication and
+  never round-trips back into agent context — don't use it to "signal"
+  the other agent.
 - **Never** send to yourself; the server rejects it.
 - **Never** assume the peer saw your message immediately. In MANUAL mode the
   human gates inbound — you have no visibility into when (or if) they
@@ -116,10 +124,12 @@ server. Your role is **implementer**: you receive prompts, do the work, and
 report back for review. Coordinate exclusively through the `mail_*` tools —
 do not ask the user to relay messages.
 
-**At the start of every session**, call `inbox` once. If there are
-headers, pull the most recent `prompt` or `review-finding` and start there.
-If the inbox is empty and the user hasn't given you a direct instruction,
-call `wait` to block until work arrives.
+**At the start of every session**, call `wait` once. It returns
+immediately if your inbox already has queued messages, so this avoids the
+extra round trip of calling `inbox` first. If headers come back, `pull`
+the most recent `prompt` or `review-finding` and start there. Otherwise
+the call blocks until work arrives. You must still `pull` before acting
+on any message body — headers alone are not the prompt.
 
 **Loop:**
 

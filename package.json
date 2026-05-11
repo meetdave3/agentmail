@@ -1,5 +1,5 @@
 {
-  "name": "agentmail",
+  "name": "@meetdave/agentmail",
   "version": "0.1.0",
   "description": "Local pull-only message bus for AI coding agents (Claude, Codex), with an Ink TUI dashboard and human-gated review.",
   "type": "module",
@@ -8,7 +8,7 @@
   "homepage": "https://github.com/meetdave3/agentmail#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/meetdave3/agentmail.git"
+    "url": "git+https://github.com/meetdave3/agentmail.git"
   },
   "bugs": {
     "url": "https://github.com/meetdave3/agentmail/issues"
@@ -28,7 +28,7 @@
     "hono"
   ],
   "bin": {
-    "agentmail": "./bin/agentmail.ts"
+    "agentmail": "bin/agentmail"
   },
   "files": [
     "bin",
@@ -38,7 +38,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "bun run bin/agentmail.ts",
+    "dev": "bun run bin/agentmail",
     "typecheck": "bunx tsc --noEmit",
     "build:mcp": "bun build src/mcp/entry.ts --target=node --external undici --outfile=bin/mcp-entry.js",
     "postinstall": "bun run build:mcp",

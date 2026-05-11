@@ -2,13 +2,16 @@
 
 ![Agentmail](./assets/hero.png)
 
-A local, pull-only message bus between two AI coding agents (Claude, Codex,
-or any pair of CLI agents that speak MCP), with a live terminal dashboard
-for the human in the loop.
+**Two AI coding agents. One local inbox. A dashboard to watch them work.**
 
-The goal is to replace copy-paste relay between agents — without giving up
-the things copy-paste gets right: explicit, context-conscious handoffs and
-a human gate on what each agent sees.
+agentmail lets two CLI coding agents (Claude, Codex, anything that speaks
+MCP) send each other structured messages instead of routing through you.
+The typical setup: one plans and reviews, the other implements — they go
+back and forth until the work holds up, and only the final result reaches
+your desk.
+
+You stay in the loop through a live terminal dashboard, where you can read,
+edit, or drop any message before it lands on the other side.
 
 ```
 ┌──────────────┐                       ┌──────────────┐
@@ -73,16 +76,26 @@ gets through.
 ## Install
 
 ```bash
-git clone https://github.com/meetdave3/agentmail.git ~/Code/agentmail
-cd ~/Code/agentmail
-bun install
-bun link              # registers `agentmail` as a global command
+bun add -g @meetdave/agentmail
+# or
+npm i -g @meetdave/agentmail
 ```
 
 That puts `agentmail` on your `PATH`. Confirm:
 
 ```bash
 agentmail help
+```
+
+### From source
+
+For contributors and local development:
+
+```bash
+git clone https://github.com/meetdave3/agentmail.git ~/Code/agentmail
+cd ~/Code/agentmail
+bun install
+bun link              # registers `agentmail` as a global command
 ```
 
 ## Quickstart
@@ -215,7 +228,7 @@ agentmail status <agent> <text...>      set an agent's "working on" string
 agentmail help                          show usage
 
 Advanced / scripting:
-agentmail init                          scaffold ./.bus and print MCP snippets only
+agentmail init                          scaffold ./.mail and print MCP snippets only
 agentmail start [--detach]              start the daemon directly (no TUI)
 agentmail tui                           open just the TUI (assumes daemon is up)
 agentmail mcp --as <claude|codex>       stdio MCP server (spawned by agent CLIs)
@@ -223,8 +236,8 @@ agentmail mcp --as <claude|codex>       stdio MCP server (spawned by agent CLIs)
 
 Environment:
 
-- `AGENTMAIL_DIR` overrides the `.bus` directory location (defaults to
-  `./.bus` in the current working directory).
+- `AGENTMAIL_DIR` overrides the `.mail` directory location (defaults to
+  `./.mail` in the current working directory).
 
 ## How agents discover the bus
 
@@ -267,7 +280,7 @@ versioned in this repo, so the link is always current.
 
 ```
 agentmail/
-  bin/agentmail.ts              CLI entry — routes subcommands
+  bin/agentmail                 CLI entry — routes subcommands
   src/
     server/                    Bun + Hono daemon + WebSocket hub + SQLite
     mcp/                       stdio MCP server (the agent-facing surface)

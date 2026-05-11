@@ -37,7 +37,7 @@ interface JsonRpcResponse {
   error?: { code: number; message: string };
 }
 
-const BIN = join(import.meta.dir, "..", "bin", "agentmail.ts");
+const BIN = join(import.meta.dir, "..", "bin", "agentmail");
 
 class Reporter {
   private failed = 0;
