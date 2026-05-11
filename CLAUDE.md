@@ -30,7 +30,7 @@ see [`README.md`](./README.md).
 bin/agentmail.ts         CLI entry — routes subcommands
 src/
   server/               Bun.serve + Hono routes + WebSocket hub + SQLite store
-  mcp/                  stdio MCP server + mail_inbox/wait/pull/send/status tools
+  mcp/                  stdio MCP server + inbox/wait/pull/send/status tools
   tui/                  Ink app (components + hooks + REST/WS client)
   cli/                  init / start / stop / mode / log / send / status / tui / mcp
   shared/               AgentId / Message / BusEvent / config resolver / ulid
@@ -43,26 +43,26 @@ tests/e2e.ts            spawns a fresh daemon, talks MCP as both agents,
 ### Context discipline is the whole point
 
 - **Never** add a tool that pushes content into an agent's context. The
-  agent's call is the only path. `mail_pull` is the explicit "spend context
+  agent's call is the only path. `pull` is the explicit "spend context
   here" act.
-- `mail_inbox` and `mail_wait` return **headers only**. No bodies, no edits,
+- `inbox` and `wait` return **headers only**. No bodies, no edits,
   no log entries. If you find yourself wanting to enrich them, stop and
   reconsider.
-- `mail_status` is write-only. Any tool that writes user-visible state to the
+- `status` is write-only. Any tool that writes user-visible state to the
   server must not return that state back into agent context.
 - Anything an agent calls returns the smallest payload that satisfies the
   contract.
 
-### mail_wait (long-poll) — explicitly allowed
+### wait (long-poll) — explicitly allowed
 
-The original design forbade a `mail_wait` tool on the grounds that it
+The original design forbade a `wait` tool on the grounds that it
 violates pull-only context discipline. We reversed that: the alternative
-(periodic polling via `mail_inbox` from inside `CLAUDE.md`/`AGENTS.md`
+(periodic polling via `inbox` from inside `CLAUDE.md`/`AGENTS.md`
 instructions) burns more context than a single long-lived blocking call.
 
-Rules for `mail_wait`:
+Rules for `wait`:
 
-- Returns the same header listing as `mail_inbox` — never bodies.
+- Returns the same header listing as `inbox` — never bodies.
 - Server caps `timeoutSec` at 1800 (30 min). The cap lives in
   `src/server/routes.ts`.
 - Wakes only when a message addressed to the caller becomes *visible* in

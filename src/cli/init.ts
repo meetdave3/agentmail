@@ -64,11 +64,11 @@ ${indent(codexSnippet)}
 
   4. Restart any Claude or Codex sessions you had open before pasting the snippets — they need
      to re-read the MCP config. New sessions started in this directory will see five mail tools:
-       ${chalk.cyan("mail_inbox")}   — list headers of messages awaiting you (no bodies)
-       ${chalk.cyan("mail_wait")}    — block until a new message arrives (long-poll, no busy-loop)
-       ${chalk.cyan("mail_pull")}    — fetch a single message body by id (spends context)
-       ${chalk.cyan("mail_send")}    — send a message to the other agent
-       ${chalk.cyan("mail_status")}  — set "what I'm working on" (write-only, no echo)
+       ${chalk.cyan("inbox")}   — list headers of messages awaiting you (no bodies)
+       ${chalk.cyan("wait")}    — block until a new message arrives (long-poll, no busy-loop)
+       ${chalk.cyan("pull")}    — fetch a single message body by id (spends context)
+       ${chalk.cyan("send")}    — send a message to the other agent
+       ${chalk.cyan("status")}  — set "what I'm working on" (write-only, no echo)
 `);
 }
 

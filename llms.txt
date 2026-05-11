@@ -17,7 +17,7 @@ The canonical URL of this file is:
 
 agentmail is a local, pull-only message bus between two CLI coding agents
 (typically Claude Code and OpenAI Codex). Each agent has access to five MCP
-tools (`mail_inbox`, `mail_wait`, `mail_pull`, `mail_send`, `mail_status`). The
+tools (`inbox`, `wait`, `pull`, `send`, `status`). The
 human watches a terminal dashboard and (in MANUAL mode) gates every inbound
 message. The design constraint is **context discipline**: no message ever
 enters an agent's context without an explicit tool call. The full project
@@ -27,13 +27,13 @@ lives at <https://github.com/meetdave3/agentmail>.
 
 | Tool         | Input                          | Returns                                                  | When to call                                                                                                                                                                  |
 | ------------ | ------------------------------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mail_inbox`  | (none)                         | Headers list (id, from, ts, title, type). No bodies.     | When you want a quick non-blocking check of what's queued for you. Cheap on context.                                                                                          |
-| `mail_wait`   | `timeoutSec?` (default 1800)   | Same headers as `mail_inbox`, or `"timeout"`.             | When you have nothing useful to do until the peer responds. Blocks until an inbox message is visible or the timeout elapses. Returns immediately if your inbox is non-empty.  |
-| `mail_pull`   | `id` (from `mail_inbox`)        | The full message body and any reviewer edits/notes.      | The only path a body enters your context. Call deliberately, after `mail_inbox` shows a header worth reading.                                                                  |
-| `mail_send`   | `type`, `title`, `body`, `to?` | Acknowledgement with the new message id and status.      | When you need to hand work to the other agent or post a `note` to the human. Defaults `to` to the peer (the agent who is not you).                                            |
-| `mail_status` | `text` (max 200 chars)         | `"ok"` — the text is never echoed back.                  | To set a short "what I'm working on" string for the human's dashboard. Write-only.                                                                                            |
+| `inbox`  | (none)                         | Headers list (id, from, ts, title, type). No bodies.     | When you want a quick non-blocking check of what's queued for you. Cheap on context.                                                                                          |
+| `wait`   | `timeoutSec?` (default 1800)   | Same headers as `inbox`, or `"timeout"`.             | When you have nothing useful to do until the peer responds. Blocks until an inbox message is visible or the timeout elapses. Returns immediately if your inbox is non-empty.  |
+| `pull`   | `id` (from `inbox`)        | The full message body and any reviewer edits/notes.      | The only path a body enters your context. Call deliberately, after `inbox` shows a header worth reading.                                                                  |
+| `send`   | `type`, `title`, `body`, `to?` | Acknowledgement with the new message id and status.      | When you need to hand work to the other agent or post a `note` to the human. Defaults `to` to the peer (the agent who is not you).                                            |
+| `status` | `text` (max 200 chars)         | `"ok"` — the text is never echoed back.                  | To set a short "what I'm working on" string for the human's dashboard. Write-only.                                                                                            |
 
-Valid `type` values for `mail_send`:
+Valid `type` values for `send`:
 
 - `prompt` — a task delegated to the recipient (typically planner → implementer)
 - `report-back` — a completion report (typically implementer → planner)
@@ -54,42 +54,42 @@ below assume that split. Adapt the role labels if the user's setup differs.
 ### Implementer loop (work agent)
 
 ```
-1. mail_wait                    ← block until a prompt arrives
-2. mail_pull <id>               ← read the full prompt
+1. wait                    ← block until a prompt arrives
+2. pull <id>               ← read the full prompt
 3. (do the work)
-4. mail_status "<short note>"   ← optional progress markers along the way
-5. mail_send report-back …      ← report completion to the planner
-6. mail_wait                    ← block for review-finding or green-light
-7. If review-finding → mail_pull, address the findings, goto 5.
-   If green-light    → mail_pull, then mail_send commit-pr-prompt (or stop).
+4. status "<short note>"   ← optional progress markers along the way
+5. send report-back …      ← report completion to the planner
+6. wait                    ← block for review-finding or green-light
+7. If review-finding → pull, address the findings, goto 5.
+   If green-light    → pull, then send commit-pr-prompt (or stop).
 ```
 
 ### Planner / reviewer loop
 
 ```
 1. (formulate the task with the user)
-2. mail_send prompt …           ← delegate
-3. mail_wait                    ← block until report-back or blockers
-4. mail_pull <id>               ← read the report
+2. send prompt …           ← delegate
+3. wait                    ← block until report-back or blockers
+4. pull <id>               ← read the report
 5. Review:
-   - issues found  → mail_send review-finding …, goto 3
-   - looks good    → mail_send green-light …, optionally commit-pr-prompt
-   - blockers      → resolve with the human, then mail_send back with guidance
+   - issues found  → send review-finding …, goto 3
+   - looks good    → send green-light …, optionally commit-pr-prompt
+   - blockers      → resolve with the human, then send back with guidance
 ```
 
 ### Hard rules to bake into both roles
 
-- **Never** start work without `mail_pull`. Headers alone are not the prompt.
-- **Never** poll `mail_inbox` in a loop. Use `mail_wait` — it's one blocking
+- **Never** start work without `pull`. Headers alone are not the prompt.
+- **Never** poll `inbox` in a loop. Use `wait` — it's one blocking
   call instead of many context-spending ones.
 - **Never** send to yourself; the server rejects it.
 - **Never** assume the peer saw your message immediately. In MANUAL mode the
   human gates inbound — you have no visibility into when (or if) they
-  release it. Block on `mail_wait` and trust the wake.
-- **Never** wrap `mail_pull` output in commentary back to the bus. If the
+  release it. Block on `wait` and trust the wake.
+- **Never** wrap `pull` output in commentary back to the bus. If the
   planner sent you a prompt, work on it — don't echo the prompt back as a
   `note`.
-- `mail_status` is write-only — the human reads it, you do not. Don't expect
+- `status` is write-only — the human reads it, you do not. Don't expect
   it to round-trip into your context.
 
 ## What to write into the project's agent instruction files
@@ -116,24 +116,24 @@ server. Your role is **implementer**: you receive prompts, do the work, and
 report back for review. Coordinate exclusively through the `mail_*` tools —
 do not ask the user to relay messages.
 
-**At the start of every session**, call `mail_inbox` once. If there are
+**At the start of every session**, call `inbox` once. If there are
 headers, pull the most recent `prompt` or `review-finding` and start there.
 If the inbox is empty and the user hasn't given you a direct instruction,
-call `mail_wait` to block until work arrives.
+call `wait` to block until work arrives.
 
 **Loop:**
 
-1. `mail_pull <id>` the inbound prompt.
+1. `pull <id>` the inbound prompt.
 2. Do the work.
-3. `mail_status "<short note>"` for any non-trivial milestone (optional).
-4. `mail_send report-back` with a complete summary of what changed and any
+3. `status "<short note>"` for any non-trivial milestone (optional).
+4. `send report-back` with a complete summary of what changed and any
    open questions. The reviewer cannot see your terminal — your report-back
    is the entire signal.
-5. `mail_wait` for the reviewer's response.
+5. `wait` for the reviewer's response.
 6. If `review-finding`, address the points and goto 4. If `green-light`,
    carry out any final instructions (e.g. `commit-pr-prompt`).
 
-**Never** poll `mail_inbox` in a loop — `mail_wait` is the blocking primitive.
+**Never** poll `inbox` in a loop — `wait` is the blocking primitive.
 **Never** send to yourself. Default `to` (the peer) is correct in almost
 every case.
 ```
@@ -148,21 +148,21 @@ server. Your role is **planner and reviewer**: you formulate prompts with
 the user, delegate to the implementer, and review what comes back.
 Coordinate exclusively through the `mail_*` tools.
 
-**At the start of every session**, call `mail_inbox` once. If there are
+**At the start of every session**, call `inbox` once. If there are
 unread `report-back` or `blockers` messages, prioritise them.
 
 **Loop:**
 
 1. Work with the user to define the next task.
-2. `mail_send prompt` to the implementer with a self-contained brief.
-3. `mail_wait` for the response.
-4. `mail_pull <id>` the `report-back` or `blockers`.
+2. `send prompt` to the implementer with a self-contained brief.
+3. `wait` for the response.
+4. `pull <id>` the `report-back` or `blockers`.
 5. Review:
-   - Issues → `mail_send review-finding` with specifics, goto 3.
-   - Approved → `mail_send green-light`, optionally a `commit-pr-prompt`.
-   - Blockers → resolve with the user, then `mail_send` back with guidance.
+   - Issues → `send review-finding` with specifics, goto 3.
+   - Approved → `send green-light`, optionally a `commit-pr-prompt`.
+   - Blockers → resolve with the user, then `send` back with guidance.
 
-**Never** poll `mail_inbox` in a loop — use `mail_wait`. **Never** send a
+**Never** poll `inbox` in a loop — use `wait`. **Never** send a
 `prompt` without the context the implementer needs to act on it alone; the
 implementer cannot see your conversation with the user.
 ```
@@ -177,9 +177,9 @@ writing the snippets, then proceed.
 
 - Do not invent new MCP tools or new `type` values. The five tools and
   seven types above are the entire surface.
-- Do not write instructions that ask the agent to call `mail_inbox` on a
-  timer. The whole point of `mail_wait` is to avoid that pattern.
-- Do not document `mail_status` as a way to communicate with the peer. It is
+- Do not write instructions that ask the agent to call `inbox` on a
+  timer. The whole point of `wait` is to avoid that pattern.
+- Do not document `status` as a way to communicate with the peer. It is
   for the human's TUI only and is never visible to the peer agent.
 - Do not write CLAUDE.md / AGENTS.md content that contradicts the project's
   existing conventions. If you see existing content that conflicts (e.g. a
@@ -195,8 +195,8 @@ confirm:
 
 1. The `## agentmail coordination` section exists exactly once.
 2. The role (implementer vs planner) matches what the user intends.
-3. No tool name is misspelled (it's `mail_inbox`, `mail_wait`, `mail_pull`,
-   `mail_send`, `mail_status` — all lowercase, all snake_case).
+3. No tool name is misspelled (it's `inbox`, `wait`, `pull`,
+   `send`, `status` — all lowercase, all snake_case).
 4. You have not removed or reordered unrelated sections.
 
 Report back to the user with a one-line summary per file you changed.

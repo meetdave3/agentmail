@@ -7,9 +7,9 @@
  *  - manual mode holds messages as pending
  *  - the human can release a pending message
  *  - released messages appear in the recipient's inbox header listing
- *  - mail_pull returns the body and consumes the message
+ *  - pull returns the body and consumes the message
  *  - auto mode delivers immediately
- *  - mail_status writes only — value does not leak into agent context
+ *  - status writes only — value does not leak into agent context
  *  - return trip codex → claude works symmetrically
  *
  * Exits 0 on full pass, 1 on any failure.
@@ -221,7 +221,7 @@ async function main(): Promise<void> {
 
   try {
     // (1) claude sends to codex (codex MANUAL by default)
-    const sendRes = await mcpCall("claude", busDir, "mail_send", {
+    const sendRes = await mcpCall("claude", busDir, "send", {
       type: "prompt",
       title: "audit auth middleware",
       body: "<objective>review middleware</objective>",
@@ -235,7 +235,7 @@ async function main(): Promise<void> {
     const sentId = sendText.match(/(01[A-Z0-9]{24})/)?.[1] ?? "";
 
     // (2) codex inbox should be empty (held)
-    const inboxHeldRes = await mcpCall("codex", busDir, "mail_inbox", {});
+    const inboxHeldRes = await mcpCall("codex", busDir, "inbox", {});
     r.assert(
       bodyText(inboxHeldRes) === "inbox empty",
       "codex inbox is empty while message is held",
@@ -244,7 +244,7 @@ async function main(): Promise<void> {
 
     // (3) Human releases via REST
     await http(`${base}/api/release`, "POST", { id: sentId });
-    const inboxReleasedRes = await mcpCall("codex", busDir, "mail_inbox", {});
+    const inboxReleasedRes = await mcpCall("codex", busDir, "inbox", {});
     r.assert(
       bodyText(inboxReleasedRes).includes(sentId),
       "codex inbox shows released message header",
@@ -256,14 +256,14 @@ async function main(): Promise<void> {
     );
 
     // (4) codex pulls body
-    const pullRes = await mcpCall("codex", busDir, "mail_pull", { id: sentId });
+    const pullRes = await mcpCall("codex", busDir, "pull", { id: sentId });
     r.assert(
       bodyText(pullRes).includes("<objective>review middleware</objective>"),
-      "mail_pull returns the body",
+      "pull returns the body",
     );
 
     // (5) inbox empty after consume
-    const inboxAfterRes = await mcpCall("codex", busDir, "mail_inbox", {});
+    const inboxAfterRes = await mcpCall("codex", busDir, "inbox", {});
     r.assert(
       bodyText(inboxAfterRes) === "inbox empty",
       "inbox empty after consumption",
@@ -271,7 +271,7 @@ async function main(): Promise<void> {
 
     // (6) toggle codex to AUTO and send again — should land immediately
     await http(`${base}/api/mode`, "POST", { agent: "codex", mode: "auto" });
-    const autoSendRes = await mcpCall("claude", busDir, "mail_send", {
+    const autoSendRes = await mcpCall("claude", busDir, "send", {
       type: "note",
       title: "auto test",
       body: "auto body",
@@ -281,14 +281,14 @@ async function main(): Promise<void> {
       "auto-mode send is released immediately",
       `got: ${bodyText(autoSendRes)}`,
     );
-    const autoInboxRes = await mcpCall("codex", busDir, "mail_inbox", {});
+    const autoInboxRes = await mcpCall("codex", busDir, "inbox", {});
     r.assert(
       bodyText(autoInboxRes).includes("auto test"),
       "auto-mode message lands directly in codex inbox",
     );
 
     // (7) return trip codex → claude (claude still MANUAL)
-    const returnRes = await mcpCall("codex", busDir, "mail_send", {
+    const returnRes = await mcpCall("codex", busDir, "send", {
       type: "report-back",
       title: "review done",
       body: "lgtm minus one nit",
@@ -299,13 +299,13 @@ async function main(): Promise<void> {
       `got: ${bodyText(returnRes)}`,
     );
 
-    // (8) mail_status writes only — confirm no leak in any response
-    const statusRes = await mcpCall("codex", busDir, "mail_status", {
+    // (8) status writes only — confirm no leak in any response
+    const statusRes = await mcpCall("codex", busDir, "status", {
       text: "reviewing diff #42",
     });
     r.assert(
       bodyText(statusRes) === "ok",
-      "mail_status returns only an ack — no echo into context",
+      "status returns only an ack — no echo into context",
       `got: ${bodyText(statusRes)}`,
     );
     interface StateResp {
@@ -319,7 +319,7 @@ async function main(): Promise<void> {
     );
 
     // (9) sending to self is rejected
-    const selfRes = await mcpCall("codex", busDir, "mail_send", {
+    const selfRes = await mcpCall("codex", busDir, "send", {
       type: "note",
       title: "self",
       body: "x",
@@ -330,55 +330,55 @@ async function main(): Promise<void> {
       "cannot send to yourself",
     );
 
-    // (10) mail_wait returns immediately when inbox is non-empty. Codex's
+    // (10) wait returns immediately when inbox is non-empty. Codex's
     // inbox still has the auto-mode message from step (6).
     const waitImmediate = await mcpCall(
       "codex",
       busDir,
-      "mail_wait",
+      "wait",
       { timeoutSec: 5 },
       { timeoutMs: 3000 },
     );
     r.assert(
       bodyText(waitImmediate).includes("auto test"),
-      "mail_wait returns immediately when inbox non-empty",
+      "wait returns immediately when inbox non-empty",
       `got: ${bodyText(waitImmediate)}`,
     );
 
     // Drain codex's inbox so the next wait calls hit an empty starting state.
-    const drainList = await mcpCall("codex", busDir, "mail_inbox", {});
+    const drainList = await mcpCall("codex", busDir, "inbox", {});
     const drainIds = bodyText(drainList)
       .split("\n")
       .map((l) => l.match(/(01[A-Z0-9]{24})/)?.[1])
       .filter((x): x is string => !!x);
     for (const id of drainIds) {
-      await mcpCall("codex", busDir, "mail_pull", { id });
+      await mcpCall("codex", busDir, "pull", { id });
     }
 
-    // (11) mail_wait times out cleanly when nothing arrives.
+    // (11) wait times out cleanly when nothing arrives.
     const waitTimeout = await mcpCall(
       "codex",
       busDir,
-      "mail_wait",
+      "wait",
       { timeoutSec: 1 },
       { timeoutMs: 4000 },
     );
     r.assert(
       bodyText(waitTimeout) === "timeout",
-      "mail_wait times out when no message arrives",
+      "wait times out when no message arrives",
       `got: ${bodyText(waitTimeout)}`,
     );
 
-    // (12) mail_wait wakes when a new auto-mode message arrives mid-wait.
+    // (12) wait wakes when a new auto-mode message arrives mid-wait.
     const waitWake = mcpCall(
       "codex",
       busDir,
-      "mail_wait",
+      "wait",
       { timeoutSec: 5 },
       { timeoutMs: 8000 },
     );
     await Bun.sleep(300); // ensure the wait has subscribed
-    await mcpCall("claude", busDir, "mail_send", {
+    await mcpCall("claude", busDir, "send", {
       type: "note",
       title: "wake up codex",
       body: "ping",
@@ -386,14 +386,14 @@ async function main(): Promise<void> {
     const waitWakeRes = await waitWake;
     r.assert(
       bodyText(waitWakeRes).includes("wake up codex"),
-      "mail_wait wakes when a message arrives mid-wait",
+      "wait wakes when a message arrives mid-wait",
       `got: ${bodyText(waitWakeRes)}`,
     );
 
-    // (13) mail_wait wakes when a held message is released (claude is MANUAL).
+    // (13) wait wakes when a held message is released (claude is MANUAL).
     // Drain claude's pending → released first so we have a clean state.
     // Send codex → claude (still MANUAL), get pending id, then wait + release.
-    const heldSend = await mcpCall("codex", busDir, "mail_send", {
+    const heldSend = await mcpCall("codex", busDir, "send", {
       type: "note",
       title: "held for release",
       body: "x",
@@ -406,7 +406,7 @@ async function main(): Promise<void> {
     const waitRelease = mcpCall(
       "claude",
       busDir,
-      "mail_wait",
+      "wait",
       { timeoutSec: 5 },
       { timeoutMs: 8000 },
     );
@@ -415,7 +415,7 @@ async function main(): Promise<void> {
     const waitReleaseRes = await waitRelease;
     r.assert(
       bodyText(waitReleaseRes).includes("held for release"),
-      "mail_wait wakes when a pending message is released",
+      "wait wakes when a pending message is released",
       `got: ${bodyText(waitReleaseRes)}`,
     );
   } catch (err) {
