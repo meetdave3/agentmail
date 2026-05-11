@@ -37,6 +37,30 @@ export async function startMcpServer(me: AgentId): Promise<void> {
   registerBusTools(server, client, me);
 
   const transport = new StdioServerTransport();
+
+  // Hold the process open until we receive a termination signal. We do NOT
+  // exit on transport.onclose — some MCP hosts (notably the Codex CLI) spawn
+  // the server with stdin closed or set to /dev/null, and only attach the
+  // real pipe once they've sent `initialize`. If we exit on the first
+  // stdin EOF, the host sees a startup timeout. Letting the parent SIGTERM
+  // us on shutdown is the only signal we trust.
+  let resolveExit: () => void = () => undefined;
+  const exitWhen = new Promise<void>((resolve) => {
+    resolveExit = resolve;
+  });
+  transport.onclose = () => {
+    log("transport close (ignored — waiting for signal)");
+  };
+  const onSignal = (sig: NodeJS.Signals) => {
+    log(`signal ${sig}`);
+    resolveExit();
+  };
+  process.on("SIGTERM", onSignal);
+  process.on("SIGINT", onSignal);
+  process.on("SIGHUP", onSignal);
+
   await server.connect(transport);
   log("mcp ready");
+  await exitWhen;
+  log("mcp exit");
 }

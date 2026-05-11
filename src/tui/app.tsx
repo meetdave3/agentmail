@@ -78,7 +78,15 @@ function App({ port, busDir }: AppProps): React.ReactElement {
       setExpanded(false);
       return;
     }
-    if (key.return || input === "o") {
+    if (key.rightArrow) {
+      setExpanded(true);
+      return;
+    }
+    if (key.leftArrow) {
+      setExpanded(false);
+      return;
+    }
+    if (key.return) {
       setExpanded((v) => !v);
       return;
     }

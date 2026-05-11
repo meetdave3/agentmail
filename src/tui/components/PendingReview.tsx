@@ -30,7 +30,7 @@ export function PendingReview({
           ({pending.length})
         </Text>
         <Text dimColor>
-          {"  ·  [j/k] move  ·  [enter] expand  ·  [r]elease  ·  [d]rop  ·  [g] release all"}
+          {"  ·  [j/k] move  ·  [→/←] expand/collapse  ·  [r]elease  ·  [d]rop  ·  [g] release all"}
         </Text>
       </Box>
       {pending.length === 0 ? (

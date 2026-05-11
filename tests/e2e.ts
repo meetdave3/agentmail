@@ -16,7 +16,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -77,16 +77,40 @@ async function mcpCall(
       env: { ...process.env, AGENTBUS_DIR: busDir },
     });
     let stdout = "";
+    let settled = false;
+    const finalize = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      proc.kill("SIGTERM");
+      fn();
+    };
+    const targetId = 2;
+    const tryResolveFromStdout = () => {
+      const lines = stdout.split("\n").filter((l) => l.trim().startsWith("{"));
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line) as JsonRpcResponse;
+          if (parsed.id === targetId) {
+            finalize(() => resolve(parsed));
+            return true;
+          }
+        } catch {
+          // skip non-JSON
+        }
+      }
+      return false;
+    };
     proc.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
+      tryResolveFromStdout();
     });
     proc.stderr.on("data", () => {
       // discard
     });
-    proc.on("error", reject);
+    proc.on("error", (err) => finalize(() => reject(err)));
     proc.on("close", () => {
+      if (settled) return;
       const lines = stdout.split("\n").filter((l) => l.trim().startsWith("{"));
-      const targetId = 2;
       for (const line of lines) {
         try {
           const parsed = JSON.parse(line) as JsonRpcResponse;
@@ -124,7 +148,13 @@ async function mcpCall(
     proc.stdin.write(JSON.stringify(init) + "\n");
     proc.stdin.write(JSON.stringify(initialized) + "\n");
     proc.stdin.write(JSON.stringify(call) + "\n");
-    setTimeout(() => proc.stdin.end(), 400);
+    // Safety: if no response after 3s, give up. The MCP server ignores
+    // stdin EOF on purpose (Codex compatibility) so we rely on SIGTERM
+    // via finalize() to actually shut it down.
+    setTimeout(() => {
+      if (settled) return;
+      finalize(() => reject(new Error(`mcp timeout. stdout so far:\n${stdout}`)));
+    }, 3000);
   });
 }
 
@@ -147,7 +177,10 @@ async function main(): Promise<void> {
   const tempRoot = mkdtempSync(join(tmpdir(), "agentbus-e2e-"));
   const busDir = join(tempRoot, ".bus");
 
-  console.log(`temp project: ${tempRoot}`);
+  // Use a per-run random port so the test doesn't collide with any local
+  // daemon (e.g. one running for actual day-to-day use on the default port).
+  const port = 20000 + Math.floor(Math.random() * 30000);
+  console.log(`temp project: ${tempRoot}  port: ${port}`);
 
   // init via CLI
   const init = spawn("bun", [BIN, "init"], {
@@ -155,6 +188,13 @@ async function main(): Promise<void> {
     stdio: ["ignore", "pipe", "pipe"],
   });
   await new Promise((resolve) => init.on("close", resolve));
+
+  // Override the default port in the generated config so this run is
+  // hermetic.
+  const configPath = join(busDir, "config.json");
+  const config = JSON.parse(readFileSync(configPath, "utf8")) as { port: number };
+  config.port = port;
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
 
   // start daemon in background
   const daemon = spawn("bun", [BIN, "start"], {
@@ -164,7 +204,7 @@ async function main(): Promise<void> {
   });
 
   // wait for /api/health
-  const base = "http://127.0.0.1:7777";
+  const base = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 50; i++) {
     try {
       const h = await fetch(`${base}/api/health`);
