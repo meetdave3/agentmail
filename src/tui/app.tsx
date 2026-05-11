@@ -24,6 +24,7 @@ function App({ port, busDir }: AppProps): React.ReactElement {
   const api = useMemo(() => new TuiApi(port), [port]);
 
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -69,10 +70,16 @@ function App({ port, busDir }: AppProps): React.ReactElement {
     if (state.pending.length === 0) return;
     if (input === "j" || key.downArrow) {
       setSelectedIdx((i) => Math.min(i + 1, state.pending.length - 1));
+      setExpanded(false);
       return;
     }
     if (input === "k" || key.upArrow) {
       setSelectedIdx((i) => Math.max(i - 1, 0));
+      setExpanded(false);
+      return;
+    }
+    if (key.return || input === "o") {
+      setExpanded((v) => !v);
       return;
     }
     const target = state.pending[clampedIdx];
@@ -105,6 +112,7 @@ function App({ port, busDir }: AppProps): React.ReactElement {
       <PendingReview
         pending={state.pending}
         selectedIdx={clampedIdx}
+        expanded={expanded}
         busy={busy}
         lastError={lastError}
       />

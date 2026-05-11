@@ -110,7 +110,7 @@ the background, surviving the dashboard) and opens the TUI:
 │ pending for me: 0    │ pending for me: 1                       │
 └──────────────────────┴─────────────────────────────────────────┘
 LIVE LOG
-PENDING REVIEW (1) · [j/k] move · [r]elease · [d]rop · [g] release all
+PENDING REVIEW (1) · [j/k] move · [enter] expand · [r]elease · [d]rop · [g] release all
 ▸ codex → claude [prompt] audit auth middleware
 ```
 
@@ -179,6 +179,7 @@ agentbus mode codex manual
 2         toggle Codex mode
 j / k     move selection in the pending review queue
 ↑ / ↓     same as k / j
+enter     expand the selected message to see its full body (o also works)
 r         release the selected pending message
 d         drop the selected pending message
 g         release every pending message

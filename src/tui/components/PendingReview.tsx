@@ -5,6 +5,7 @@ import type { Message } from "../../shared/types.ts";
 interface Props {
   pending: Message[];
   selectedIdx: number;
+  expanded: boolean;
   busy: string | null;
   lastError: string | null;
 }
@@ -12,6 +13,7 @@ interface Props {
 export function PendingReview({
   pending,
   selectedIdx,
+  expanded,
   busy,
   lastError,
 }: Props): React.ReactElement {
@@ -28,7 +30,7 @@ export function PendingReview({
           ({pending.length})
         </Text>
         <Text dimColor>
-          {"  ·  [j/k] move  ·  [r]elease  ·  [d]rop  ·  [g] release all"}
+          {"  ·  [j/k] move  ·  [enter] expand  ·  [r]elease  ·  [d]rop  ·  [g] release all"}
         </Text>
       </Box>
       {pending.length === 0 ? (
@@ -37,22 +39,32 @@ export function PendingReview({
         pending.map((m, i) => {
           const selected = i === selectedIdx;
           return (
-            <Box key={m.id}>
-              <Text color={selected ? "yellow" : undefined}>
-                {selected ? "▸ " : "  "}
-              </Text>
-              <Text
-                color={m.from === "claude" ? "magenta" : "blue"}
-                bold={selected}
-              >
-                {m.from}
-              </Text>
-              <Text dimColor> → </Text>
-              <Text color={m.to === "claude" ? "magenta" : "blue"} bold={selected}>
-                {m.to}
-              </Text>
-              <Text dimColor> [{m.type}] </Text>
-              <Text bold={selected}>{m.title}</Text>
+            <Box key={m.id} flexDirection="column">
+              <Box>
+                <Text color={selected ? "yellow" : undefined}>
+                  {selected ? (expanded ? "▾ " : "▸ ") : "  "}
+                </Text>
+                <Text
+                  color={m.from === "claude" ? "magenta" : "blue"}
+                  bold={selected}
+                >
+                  {m.from}
+                </Text>
+                <Text dimColor> → </Text>
+                <Text color={m.to === "claude" ? "magenta" : "blue"} bold={selected}>
+                  {m.to}
+                </Text>
+                <Text dimColor> [{m.type}] </Text>
+                <Text bold={selected}>{m.title}</Text>
+              </Box>
+              {selected && expanded && (
+                <Box flexDirection="column" paddingX={2} marginY={1}>
+                  <Text dimColor>
+                    {new Date(m.ts).toISOString()}  ·  {m.id}
+                  </Text>
+                  <Text>{m.body}</Text>
+                </Box>
+              )}
             </Box>
           );
         })
