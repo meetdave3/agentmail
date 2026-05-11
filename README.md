@@ -71,7 +71,7 @@ gets through.
 ## Install
 
 ```bash
-git clone https://github.com/<owner>/agentbus.git ~/Code/agentbus
+git clone https://github.com/meetdave3/agentbus.git ~/Code/agentbus
 cd ~/Code/agentbus
 bun install
 bun link              # registers `agentbus` as a global command
