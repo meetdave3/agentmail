@@ -128,7 +128,7 @@ function App({ port, busDir }: AppProps): React.ReactElement {
       {!state.connected && (
         <Box paddingX={1}>
           <Text color="red">
-            disconnected from daemon — start it with `agentbus start`
+            disconnected from daemon — start it with `agentmail start`
           </Text>
         </Box>
       )}
@@ -146,7 +146,7 @@ export async function renderTui(): Promise<void> {
     if (!res.ok) throw new Error(`status ${res.status}`);
   } catch (err) {
     console.error(
-      `agentbus tui: daemon not reachable at ${busUrl(config.port)} — run \`agentbus start\` first.`,
+      `agentmail tui: daemon not reachable at ${busUrl(config.port)} — run \`agentmail start\` first.`,
     );
     console.error(`  detail: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);

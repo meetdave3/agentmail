@@ -21,7 +21,7 @@ export async function startServer(opts: StartOptions = {}): Promise<{
   const store = new Store(paths.dbPath);
   const app = createRoutes(store);
   const log = (...args: unknown[]) => {
-    if (!opts.silent) console.error("[agentbus]", ...args);
+    if (!opts.silent) console.error("[agentmail]", ...args);
   };
 
   const server = Bun.serve({
@@ -52,7 +52,7 @@ export async function startServer(opts: StartOptions = {}): Promise<{
     },
   });
 
-  // PID file for `agentbus stop`.
+  // PID file for `agentmail stop`.
   writeFileSync(paths.pidPath, String(process.pid), "utf8");
   log(`listening on http://127.0.0.1:${server.port} (project: ${paths.root})`);
 

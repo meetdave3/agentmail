@@ -10,15 +10,15 @@ import { runMcp } from "./mcp.ts";
 import { runSend } from "./send.ts";
 import { runStatus } from "./status.ts";
 
-const HELP = `${chalk.bold("agentbus")} — local pull-only message bus between AI coding agents
+const HELP = `${chalk.bold("agentmail")} — local pull-only message bus between AI coding agents
 
 ${chalk.bold("Usage")}
-  agentbus                      Start the daemon (if needed) and open the dashboard
-  agentbus <command> [options]
+  agentmail                     Start the daemon (if needed) and open the dashboard
+  agentmail <command> [options]
 
 ${chalk.bold("Commands")}
   ${chalk.dim("(no command)")}                  Init if needed, start the daemon, open the TUI
-  init                          Scaffold ./.bus and print MCP snippets
+  init                          Scaffold ./.mail and print MCP snippets
   start [--detach]              Start the bus daemon
   stop                          Stop the bus daemon
   tui                           Open the Ink dashboard (daemon must be running)
@@ -30,7 +30,7 @@ ${chalk.bold("Commands")}
   help                          Show this help
 
 ${chalk.bold("Globals")}
-  AGENTBUS_DIR  Override the .bus directory location (default: ./.bus)
+  AGENTMAIL_DIR  Override the .mail directory location (default: ./.mail)
 `;
 
 export async function runCli(argv: string[]): Promise<void> {

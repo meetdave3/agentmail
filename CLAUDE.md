@@ -1,7 +1,7 @@
-# agentbus — Contributor Guide
+# agentmail — Contributor Guide
 
 Instructions for AI coding agents (Claude, Codex, etc.) working **on** this
-repo. For instructions on how end users wire `agentbus` into _their_ projects,
+repo. For instructions on how end users wire `agentmail` into _their_ projects,
 see [`README.md`](./README.md).
 
 ## Project context
@@ -12,7 +12,7 @@ see [`README.md`](./README.md).
   surface. The MCP stdio entry runs under **Node**, not Bun (see
   `src/cli/mcp.ts` for why — Bun buffers stdout while a stdin "data" listener
   is active, which breaks the MCP handshake).
-- Per-project state lives in `./.bus/` (sqlite + pid + config + mcp log).
+- Per-project state lives in `./.mail/` (sqlite + pid + config + mcp log).
 - Bind is `127.0.0.1` only. No remote access. No multi-user. No authn/authz.
 
 ## Commands
@@ -21,16 +21,16 @@ see [`README.md`](./README.md).
 - Typecheck:             `bunx tsc --noEmit`
 - Build MCP entry:       `bun run build:mcp`  (regenerates `bin/mcp-entry.js`)
 - End-to-end test:       `bun tests/e2e.ts`  (also `bun test`)
-- Run the CLI locally:   `bun run bin/agentbus.ts <command>`
-- Globally link for dev: `bun link`  (then `agentbus <command>` works anywhere)
+- Run the CLI locally:   `bun run bin/agentmail.ts <command>`
+- Globally link for dev: `bun link`  (then `agentmail <command>` works anywhere)
 
 ## Layout
 
 ```
-bin/agentbus.ts         CLI entry — routes subcommands
+bin/agentmail.ts         CLI entry — routes subcommands
 src/
   server/               Bun.serve + Hono routes + WebSocket hub + SQLite store
-  mcp/                  stdio MCP server + bus_inbox/wait/pull/send/status tools
+  mcp/                  stdio MCP server + mail_inbox/wait/pull/send/status tools
   tui/                  Ink app (components + hooks + REST/WS client)
   cli/                  init / start / stop / mode / log / send / status / tui / mcp
   shared/               AgentId / Message / BusEvent / config resolver / ulid
@@ -43,26 +43,26 @@ tests/e2e.ts            spawns a fresh daemon, talks MCP as both agents,
 ### Context discipline is the whole point
 
 - **Never** add a tool that pushes content into an agent's context. The
-  agent's call is the only path. `bus_pull` is the explicit "spend context
+  agent's call is the only path. `mail_pull` is the explicit "spend context
   here" act.
-- `bus_inbox` and `bus_wait` return **headers only**. No bodies, no edits,
+- `mail_inbox` and `mail_wait` return **headers only**. No bodies, no edits,
   no log entries. If you find yourself wanting to enrich them, stop and
   reconsider.
-- `bus_status` is write-only. Any tool that writes user-visible state to the
+- `mail_status` is write-only. Any tool that writes user-visible state to the
   server must not return that state back into agent context.
 - Anything an agent calls returns the smallest payload that satisfies the
   contract.
 
-### bus_wait (long-poll) — explicitly allowed
+### mail_wait (long-poll) — explicitly allowed
 
-The original design forbade a `bus_wait` tool on the grounds that it
+The original design forbade a `mail_wait` tool on the grounds that it
 violates pull-only context discipline. We reversed that: the alternative
-(periodic polling via `bus_inbox` from inside `CLAUDE.md`/`AGENTS.md`
+(periodic polling via `mail_inbox` from inside `CLAUDE.md`/`AGENTS.md`
 instructions) burns more context than a single long-lived blocking call.
 
-Rules for `bus_wait`:
+Rules for `mail_wait`:
 
-- Returns the same header listing as `bus_inbox` — never bodies.
+- Returns the same header listing as `mail_inbox` — never bodies.
 - Server caps `timeoutSec` at 1800 (30 min). The cap lives in
   `src/server/routes.ts`.
 - Wakes only when a message addressed to the caller becomes *visible* in
@@ -98,7 +98,7 @@ Rules for `bus_wait`:
 
 ### Process discipline
 
-- The MCP server logs to `.bus/mcp.log` via stderr. **Stdout is reserved for
+- The MCP server logs to `.mail/mcp.log` via stderr. **Stdout is reserved for
   the MCP transport.** Never `console.log` from MCP code paths.
 - Daemon process logs to stderr (`console.error`) so stdout stays free for
   potential future piping.
@@ -122,9 +122,9 @@ Before reporting any non-trivial change complete:
 2. `bun tests/e2e.ts` — all assertions green.
 3. Manual smoke if you touched the TUI:
    ```bash
-   agentbus init   # in /tmp/somewhere
-   agentbus start  # one pane
-   agentbus tui    # another pane
+   agentmail init   # in /tmp/somewhere
+   agentmail start  # one pane
+   agentmail tui    # another pane
    ```
    Then send a message and verify the live log + pending review update.
 

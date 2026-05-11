@@ -13,7 +13,7 @@ export async function runMcp(argv: string[]): Promise<void> {
   const asIdx = argv.indexOf("--as");
   const asArg = asIdx >= 0 ? argv[asIdx + 1] : undefined;
   if (!isLlmAgent(asArg)) {
-    throw new Error("usage: agentbus mcp --as <claude|codex>");
+    throw new Error("usage: agentmail mcp --as <claude|codex>");
   }
 
   const here = dirname(fileURLToPath(import.meta.url));

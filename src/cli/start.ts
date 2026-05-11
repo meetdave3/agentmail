@@ -18,7 +18,7 @@ export async function runStart(argv: string[]): Promise<void> {
 
   if (detach) {
     const exe = process.execPath;
-    const args = [process.argv[1] ?? "agentbus", "start"];
+    const args = [process.argv[1] ?? "agentmail", "start"];
     // `detached: true` puts the child in its own session (setsid) so it
     // survives the parent shell, the TUI, and any process-group signals.
     const child = spawn(exe, args, {

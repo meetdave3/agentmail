@@ -10,16 +10,16 @@ import { runStart } from "./start.ts";
 import { runTui } from "./tui.ts";
 
 /**
- * `agentbus` with no subcommand — the one-shot entrypoint.
+ * `agentmail` with no subcommand — the one-shot entrypoint.
  *
  * 1. If this project has no .bus/ yet → run init and exit. The user pastes
- *    the printed MCP snippets, then runs `agentbus` again.
+ *    the printed MCP snippets, then runs `agentmail` again.
  * 2. If the daemon isn't running → start it detached.
  * 3. Wait until the daemon is reachable.
  * 4. Launch the TUI (foreground; blocks until quit).
  *
  * The daemon survives TUI exit on purpose: closing the dashboard mid-task
- * must not break agents in flight. Use `agentbus stop` to fully shut down.
+ * must not break agents in flight. Use `agentmail stop` to fully shut down.
  */
 export async function runDefault(): Promise<void> {
   const paths = resolvePaths();
@@ -28,7 +28,7 @@ export async function runDefault(): Promise<void> {
     await runInit();
     console.error(
       chalk.bold(
-        `\nFirst-time setup complete. Paste the snippets above, then run \`agentbus\` again.`,
+        `\nFirst-time setup complete. Paste the snippets above, then run \`agentmail\` again.`,
       ),
     );
     return;
@@ -44,7 +44,7 @@ export async function runDefault(): Promise<void> {
     const ready = await waitForHealth(url, 5000);
     if (!ready) {
       throw new Error(
-        `daemon did not become reachable at ${url} within 5s. Check the daemon logs — try \`agentbus start\` directly to see startup errors.`,
+        `daemon did not become reachable at ${url} within 5s. Check the daemon logs — try \`agentmail start\` directly to see startup errors.`,
       );
     }
   }
@@ -53,7 +53,7 @@ export async function runDefault(): Promise<void> {
 
   console.error(
     chalk.dim(
-      `\ndaemon still running in the background. \`agentbus stop\` to shut it down.`,
+      `\ndaemon still running in the background. \`agentmail stop\` to shut it down.`,
     ),
   );
 }

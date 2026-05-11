@@ -9,7 +9,7 @@ interface Props {
 }
 
 export function Header({ busDir, port, connected }: Props): React.ReactElement {
-  const project = basename(busDir.replace(/\/?\.bus\/?$/, ""));
+  const project = basename(busDir.replace(/\/?\.(mail|bus)\/?$/, ""));
   return (
     <Box
       borderStyle="round"
@@ -19,7 +19,7 @@ export function Header({ busDir, port, connected }: Props): React.ReactElement {
     >
       <Text>
         <Text bold color="cyan">
-          agentbus
+          agentmail
         </Text>{" "}
         · <Text color="white">{project}</Text>
       </Text>

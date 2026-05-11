@@ -64,7 +64,7 @@ export function MessageLog({ messages, rows }: Props): React.ReactElement {
     >
       <Text dimColor>LIVE LOG</Text>
       {slice.length === 0 ? (
-        <Text dimColor>no messages yet — send something with bus_send</Text>
+        <Text dimColor>no messages yet — send something with mail_send</Text>
       ) : (
         slice.map((m) => (
           <Box key={m.id}>

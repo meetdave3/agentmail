@@ -12,19 +12,22 @@ export interface ResolvedPaths {
 }
 
 /**
- * Resolve the .bus directory location.
+ * Resolve the project's agentmail state directory.
  * Priority:
- *  1. AGENTBUS_DIR env var (absolute or relative to CWD).
- *  2. ./.bus in the current working directory.
+ *  1. AGENTMAIL_DIR env var (absolute or relative to CWD).
+ *  2. ./.mail in the current working directory.
  *
- * Note: we deliberately do NOT walk up to find an ancestor .bus, because each
- * project that runs `agentbus init` should anchor its own bus to its own CWD.
+ * Note: we deliberately do NOT walk up to find an ancestor .mail, because each
+ * project that runs `agentmail init` should anchor its own state to its own CWD.
+ *
+ * The internal property name `busDir` reflects the underlying message-bus
+ * mechanism; the on-disk directory is `.mail`.
  */
 export function resolvePaths(cwd: string = process.cwd()): ResolvedPaths {
-  const fromEnv = process.env.AGENTBUS_DIR;
+  const fromEnv = process.env.AGENTMAIL_DIR;
   const busDir = fromEnv
     ? resolve(cwd, fromEnv)
-    : join(cwd, ".bus");
+    : join(cwd, ".mail");
   const root = resolve(busDir, "..");
   return {
     root,
@@ -53,7 +56,7 @@ export function defaultConfig(): BusConfig {
 export function readConfig(paths: ResolvedPaths): BusConfig {
   if (!existsSync(paths.configPath)) {
     throw new Error(
-      `No agentbus config at ${paths.configPath}. Run \`agentbus init\` in this directory first.`,
+      `No agentmail config at ${paths.configPath}. Run \`agentmail init\` in this directory first.`,
     );
   }
   const raw = readFileSync(paths.configPath, "utf8");

@@ -1,6 +1,6 @@
-# agentbus
+# agentmail
 
-![Agentbus](./assets/hero.png)
+![Agentmail](./assets/hero.png)
 
 A local, pull-only message bus between two AI coding agents (Claude, Codex,
 or any pair of CLI agents that speak MCP), with a live terminal dashboard
@@ -12,13 +12,13 @@ a human gate on what each agent sees.
 
 ```
 ┌──────────────┐                       ┌──────────────┐
-│   claude     │── bus_send ─────────▶ │  agentbus    │
-│   (CLI)      │◀── bus_pull/inbox ────│  (daemon)    │
+│   claude     │── mail_send ─────────▶ │  agentmail    │
+│   (CLI)      │◀── mail_pull/inbox ────│  (daemon)    │
 └──────────────┘                       │              │
                                        │   SQLite +   │
 ┌──────────────┐                       │   WebSocket  │
-│   codex      │── bus_send ─────────▶ │              │
-│   (CLI)      │◀── bus_pull/inbox ────│              │
+│   codex      │── mail_send ─────────▶ │              │
+│   (CLI)      │◀── mail_pull/inbox ────│              │
 └──────────────┘                       └──────┬───────┘
                                               │ ws
                                               ▼
@@ -42,23 +42,23 @@ diffs between two CLI windows. That works, but:
 - The human has no easy way to edit, gate, or annotate a message in flight.
 - Tab-switching breaks flow.
 
-`agentbus` replaces the copy step with a tiny local daemon. Agents read and
-write via four MCP tools. The human watches a dashboard and decides what
+`agentmail` replaces the copy step with a tiny local daemon. Agents read and
+write via five MCP tools. The human watches a dashboard and decides what
 gets through.
 
 ## Design constraints
 
 - **Pull-only.** No message ever auto-injects into an agent's context. Agents
-  call `bus_inbox` (terse headers, no bodies) to see what's queued, then
-  `bus_pull <id>` to deliberately spend context on one message. This mirrors
+  call `mail_inbox` (terse headers, no bodies) to see what's queued, then
+  `mail_pull <id>` to deliberately spend context on one message. This mirrors
   the discipline of copy-paste.
 - **Tiny tool surface.** Five MCP tools, total. The only blocking one is
-  `bus_wait`, which long-polls for the next visible message — a single
+  `mail_wait`, which long-polls for the next visible message — a single
   tool call rather than a polling loop.
 - **Human-gated by default.** New agents start in `MANUAL` mode — every
   inbound message is held until the human releases it (with optional edits
   and appended notes).
-- **Per-project, local-first.** State lives in `.bus/` in the project root.
+- **Per-project, local-first.** State lives in `.mail/` in the project root.
   One daemon per workspace. No remote sync. No multi-user.
 
 ## Prerequisites
@@ -73,16 +73,16 @@ gets through.
 ## Install
 
 ```bash
-git clone https://github.com/meetdave3/agentbus.git ~/Code/agentbus
-cd ~/Code/agentbus
+git clone https://github.com/meetdave3/agentmail.git ~/Code/agentmail
+cd ~/Code/agentmail
 bun install
-bun link              # registers `agentbus` as a global command
+bun link              # registers `agentmail` as a global command
 ```
 
-That puts `agentbus` on your `PATH`. Confirm:
+That puts `agentmail` on your `PATH`. Confirm:
 
 ```bash
-agentbus help
+agentmail help
 ```
 
 ## Quickstart
@@ -90,23 +90,23 @@ agentbus help
 From the root of any project you want to coordinate agents in:
 
 ```bash
-agentbus
+agentmail
 ```
 
-That's it. The first run scaffolds `.bus/` and prints MCP wiring snippets to
+That's it. The first run scaffolds `.mail/` and prints MCP wiring snippets to
 paste into your agents' configs:
 
 - **Claude** → `.mcp.json` in the project root
 - **Codex** → `.codex/config.toml` (or merge with an existing block)
 
-Both snippets set `AGENTBUS_DIR` to this project's `.bus/` so the MCP server
+Both snippets set `AGENTMAIL_DIR` to this project's `.mail/` so the MCP server
 finds the right daemon when the agent CLI launches it.
 
-Paste them, then run `agentbus` again. This time it starts the daemon (in
+Paste them, then run `agentmail` again. This time it starts the daemon (in
 the background, surviving the dashboard) and opens the TUI:
 
 ```
-┌─ agentbus · backoffice ─────────────── 127.0.0.1:7777 ● live ─┐
+┌─ agentmail · backoffice ─────────────── 127.0.0.1:7777 ● live ─┐
 │ CLAUDE [1] MANUAL    │ CODEX  [2] MANUAL                       │
 │ status: —            │ status: reviewing diff                  │
 │ pending for me: 0    │ pending for me: 1                       │
@@ -116,32 +116,32 @@ PENDING REVIEW (1) · [j/k] move · [→/←] expand/collapse · [r]elease · [d
 ▸ codex → claude [prompt] audit auth middleware
 ```
 
-Add `.bus/` to your project's `.gitignore` (it holds local sqlite state and a
+Add `.mail/` to your project's `.gitignore` (it holds local sqlite state and a
 pid file).
 
 Start your agent CLIs from the same project directory. They'll automatically
-expose the four `bus_*` tools.
+expose the five `mail_*` tools.
 
 **Shutdown.** Closing the TUI (`q`) leaves the daemon running so in-flight
 agent calls don't break. To fully stop:
 
 ```bash
-agentbus stop
+agentmail stop
 ```
 
 ## MCP tools (the entire surface)
 
 | Tool         | Purpose |
 | ------------ | ------- |
-| `bus_inbox`  | List headers of messages addressed to you and currently pullable. Returns `id`, `from`, `ts`, `title`, `type` only. **Never bodies.** Cheap on context. Returns instantly. |
-| `bus_wait`   | Block until your inbox has at least one visible message, or `timeoutSec` elapses (default 1800, capped at 1800). Returns the same headers as `bus_inbox` — never bodies. If your inbox is already non-empty, returns immediately. Use this instead of a polling loop. |
-| `bus_pull`   | Fetch the full body of one message by id and mark it consumed. The only path a body enters your context. |
-| `bus_send`   | Send a tagged message to the other agent (or to the human). Defaults `to` to the peer. |
-| `bus_status` | Set a short "what I'm working on" string for the dashboard. Write-only — the value is never echoed back into your context. |
+| `mail_inbox`  | List headers of messages addressed to you and currently pullable. Returns `id`, `from`, `ts`, `title`, `type` only. **Never bodies.** Cheap on context. Returns instantly. |
+| `mail_wait`   | Block until your inbox has at least one visible message, or `timeoutSec` elapses (default 1800, capped at 1800). Returns the same headers as `mail_inbox` — never bodies. If your inbox is already non-empty, returns immediately. Use this instead of a polling loop. |
+| `mail_pull`   | Fetch the full body of one message by id and mark it consumed. The only path a body enters your context. |
+| `mail_send`   | Send a tagged message to the other agent (or to the human). Defaults `to` to the peer. |
+| `mail_status` | Set a short "what I'm working on" string for the dashboard. Write-only — the value is never echoed back into your context. |
 
 ### Message types
 
-`bus_send` accepts a `type` field used for filtering and labeling:
+`mail_send` accepts a `type` field used for filtering and labeling:
 
 - `prompt` — a task delegated to the recipient
 - `report-back` — completion report from the recipient
@@ -159,7 +159,7 @@ matches the contract you and the agents have agreed on.
 Modes are set **per-agent** and govern **inbound** delivery to that agent.
 
 - **MANUAL** (default) — every message addressed to this agent is held in
-  the pending-review queue. The agent's `bus_inbox` does not see it until
+  the pending-review queue. The agent's `mail_inbox` does not see it until
   you release it in the TUI (with optional edits or appended notes). This
   is the hands-on gate.
 - **AUTO** — messages addressed to this agent are released immediately and
@@ -168,8 +168,8 @@ Modes are set **per-agent** and govern **inbound** delivery to that agent.
 Toggle from the TUI with `1` (Claude) and `2` (Codex), or:
 
 ```bash
-agentbus mode claude auto
-agentbus mode codex manual
+agentmail mode claude auto
+agentmail mode codex manual
 ```
 
 ## TUI hotkeys
@@ -191,9 +191,9 @@ q         quit
 Each row in the live log shows a delivery state, WhatsApp-style:
 
 ```
-HELD    held in the manual-mode gate — recipient's bus_inbox can't see it yet
-✓       released — visible in the recipient's bus_inbox, but they haven't pulled the body
-✓✓      consumed — the recipient called bus_pull and the body entered their context
+HELD    held in the manual-mode gate — recipient's mail_inbox can't see it yet
+✓       released — visible in the recipient's mail_inbox, but they haven't pulled the body
+✓✓      consumed — the recipient called mail_pull and the body entered their context
 DROP    dropped — you rejected it; it never reached the recipient
 ```
 
@@ -202,28 +202,28 @@ when an agent reads.
 
 ## Commands
 
-The everyday command is just `agentbus` — it auto-inits, ensures the daemon is
+The everyday command is just `agentmail` — it auto-inits, ensures the daemon is
 running, and opens the dashboard. The rest are escape hatches.
 
 ```
-agentbus                               init if needed, ensure daemon, open TUI
-agentbus stop                          stop the background daemon
-agentbus log [--follow]                tail the message log to stdout
-agentbus mode <agent> <auto|manual>    flip an agent's inbound mode
-agentbus send <to> <type> <title> [-]  send a message as `user` (body via stdin or arg)
-agentbus status <agent> <text...>      set an agent's "working on" string
-agentbus help                          show usage
+agentmail                               init if needed, ensure daemon, open TUI
+agentmail stop                          stop the background daemon
+agentmail log [--follow]                tail the message log to stdout
+agentmail mode <agent> <auto|manual>    flip an agent's inbound mode
+agentmail send <to> <type> <title> [-]  send a message as `user` (body via stdin or arg)
+agentmail status <agent> <text...>      set an agent's "working on" string
+agentmail help                          show usage
 
 Advanced / scripting:
-agentbus init                          scaffold ./.bus and print MCP snippets only
-agentbus start [--detach]              start the daemon directly (no TUI)
-agentbus tui                           open just the TUI (assumes daemon is up)
-agentbus mcp --as <claude|codex>       stdio MCP server (spawned by agent CLIs)
+agentmail init                          scaffold ./.bus and print MCP snippets only
+agentmail start [--detach]              start the daemon directly (no TUI)
+agentmail tui                           open just the TUI (assumes daemon is up)
+agentmail mcp --as <claude|codex>       stdio MCP server (spawned by agent CLIs)
 ```
 
 Environment:
 
-- `AGENTBUS_DIR` overrides the `.bus` directory location (defaults to
+- `AGENTMAIL_DIR` overrides the `.bus` directory location (defaults to
   `./.bus` in the current working directory).
 
 ## How agents discover the bus
@@ -231,12 +231,12 @@ Environment:
 There are three signals that lead an agent to use these tools:
 
 1. **MCP tool descriptions** ship with the server. When the agent starts, it
-   sees `bus_inbox`, `bus_pull`, `bus_send`, `bus_status` in its tool list,
+   sees `mail_inbox`, `mail_pull`, `mail_send`, `mail_status` in its tool list,
    each with a description that explains the mechanics and the
    context-cost.
 2. **The conversation.** Most workflows start with the human saying
    something like *"there's a prompt from <peer> on the bus — check your
-   inbox."* The agent then calls `bus_inbox` → `bus_pull`.
+   inbox."* The agent then calls `mail_inbox` → `mail_pull`.
 3. **Project instructions.** You can document the coordination contract in
    `CLAUDE.md` / `AGENTS.md` / `.codex/AGENTS.md` so each agent knows when in
    its own workflow it should pull, send a `report-back`, raise a
@@ -246,17 +246,17 @@ The bus does not impose a workflow — it provides a substrate.
 
 ### Bootstrapping a new project's instructions
 
-If you want to wire agentbus into a new project's `CLAUDE.md` / `AGENTS.md`
+If you want to wire agentmail into a new project's `CLAUDE.md` / `AGENTS.md`
 without writing the snippets by hand, point a setup LLM at this URL:
 
 ```
-https://raw.githubusercontent.com/meetdave3/agentbus/main/llms.txt
+https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt
 ```
 
 That file is a self-contained bootstrap guide aimed at an LLM. Open a fresh
 session in the project you want to wire up and say:
 
-> Read <https://raw.githubusercontent.com/meetdave3/agentbus/main/llms.txt>
+> Read <https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt>
 > and follow it to update this project's CLAUDE.md and AGENTS.md.
 
 The file documents the five MCP tools, the implementer ↔ reviewer loop, and
@@ -266,8 +266,8 @@ versioned in this repo, so the link is always current.
 ## Architecture
 
 ```
-agentbus/
-  bin/agentbus.ts              CLI entry — routes subcommands
+agentmail/
+  bin/agentmail.ts              CLI entry — routes subcommands
   src/
     server/                    Bun + Hono daemon + WebSocket hub + SQLite
     mcp/                       stdio MCP server (the agent-facing surface)
@@ -279,11 +279,11 @@ agentbus/
 
 ### State
 
-Per project, in `.bus/`:
+Per project, in `.mail/`:
 
 - `config.json` — port, default modes
 - `state.sqlite` — message log, agent state (mode + status)
-- `pid` — daemon process id (so `agentbus stop` works)
+- `pid` — daemon process id (so `agentmail stop` works)
 - `mcp.log` — stderr from spawned MCP servers (stdout is reserved for the
   MCP transport)
 
@@ -308,11 +308,11 @@ status guarantee.
 
 | Symptom | Likely cause / fix |
 | ------- | ------------------ |
-| Agent's tool errors say "daemon not reachable" | The daemon isn't running for this project. `cd` to the project root and run `agentbus`. The MCP server resolves the bus by reading `./.bus/config.json` (or `AGENTBUS_DIR`). |
-| Port collision on startup | Default port is `7777`. Edit `.bus/config.json` (`"port"` field) and restart. |
-| `agentbus start` says "already running" but nothing answers | Stale pid file. Delete `.bus/pid` and try again. |
-| MCP tool errors that don't show up anywhere | Check `.bus/mcp.log`. Stdout is reserved for the MCP transport, so all diagnostics go to the log file. |
-| Renamed the project / moved the `.bus` dir | Restart the agent CLI so it re-reads `AGENTBUS_DIR`. |
+| Agent's tool errors say "daemon not reachable" | The daemon isn't running for this project. `cd` to the project root and run `agentmail`. The MCP server resolves the bus by reading `./.mail/config.json` (or `AGENTMAIL_DIR`). |
+| Port collision on startup | Default port is `7777`. Edit `.mail/config.json` (`"port"` field) and restart. |
+| `agentmail start` says "already running" but nothing answers | Stale pid file. Delete `.mail/pid` and try again. |
+| MCP tool errors that don't show up anywhere | Check `.mail/mcp.log`. Stdout is reserved for the MCP transport, so all diagnostics go to the log file. |
+| Renamed the project / moved the `.bus` dir | Restart the agent CLI so it re-reads `AGENTMAIL_DIR`. |
 
 ## Non-goals
 

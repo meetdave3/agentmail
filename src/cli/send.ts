@@ -3,7 +3,7 @@ import { busUrl, readConfig, resolvePaths } from "../shared/config.ts";
 import { isAgentId, isMessageType } from "../shared/types.ts";
 
 /**
- * `agentbus send <to> <type> <title> [body|-]`
+ * `agentmail send <to> <type> <title> [body|-]`
  *
  * Intended for human use (the user acts as the sender by default). If the body
  * arg is "-" or omitted, read body from stdin.

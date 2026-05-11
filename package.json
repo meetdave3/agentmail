@@ -1,17 +1,17 @@
 {
-  "name": "agentbus",
+  "name": "agentmail",
   "version": "0.1.0",
-  "description": "Local pull-only message bus between AI coding agents (Claude, Codex), with an Ink TUI dashboard and human-gated review.",
+  "description": "Local pull-only message bus for AI coding agents (Claude, Codex), with an Ink TUI dashboard and human-gated review.",
   "type": "module",
   "license": "MIT",
   "author": "Meet Dave <meet.dave@outlook.com> (https://github.com/meetdave3)",
-  "homepage": "https://github.com/meetdave3/agentbus#readme",
+  "homepage": "https://github.com/meetdave3/agentmail#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/meetdave3/agentbus.git"
+    "url": "https://github.com/meetdave3/agentmail.git"
   },
   "bugs": {
-    "url": "https://github.com/meetdave3/agentbus/issues"
+    "url": "https://github.com/meetdave3/agentmail/issues"
   },
   "keywords": [
     "mcp",
@@ -21,13 +21,14 @@
     "agents",
     "ai-agents",
     "bus",
+    "mail",
     "ink",
     "tui",
     "bun",
     "hono"
   ],
   "bin": {
-    "agentbus": "./bin/agentbus.ts"
+    "agentmail": "./bin/agentmail.ts"
   },
   "files": [
     "bin",
@@ -37,7 +38,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "dev": "bun run bin/agentbus.ts",
+    "dev": "bun run bin/agentmail.ts",
     "typecheck": "bunx tsc --noEmit",
     "build:mcp": "bun build src/mcp/entry.ts --target=node --external undici --outfile=bin/mcp-entry.js",
     "postinstall": "bun run build:mcp",

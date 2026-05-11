@@ -1,9 +1,9 @@
-# agentbus — bootstrap guide for setup LLMs
+# agentmail — bootstrap guide for setup LLMs
 
-You are reading this because the user wants to wire **agentbus** into the
+You are reading this because the user wants to wire **agentmail** into the
 project you're currently in. Your job is to update this project's agent
 instruction files (`CLAUDE.md`, `AGENTS.md`, `.codex/AGENTS.md`, or
-equivalent) so the agents that run in this project use the `bus_*` MCP tools
+equivalent) so the agents that run in this project use the `mail_*` MCP tools
 correctly.
 
 This is a one-shot bootstrap task. After this, the running agents will read
@@ -11,29 +11,29 @@ the instructions you wrote into their per-session prompt — they will not
 re-read this file.
 
 The canonical URL of this file is:
-<https://raw.githubusercontent.com/meetdave3/agentbus/main/llms.txt>
+<https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt>
 
-## What agentbus is, in one paragraph
+## What agentmail is, in one paragraph
 
-agentbus is a local, pull-only message bus between two CLI coding agents
+agentmail is a local, pull-only message bus between two CLI coding agents
 (typically Claude Code and OpenAI Codex). Each agent has access to five MCP
-tools (`bus_inbox`, `bus_wait`, `bus_pull`, `bus_send`, `bus_status`). The
+tools (`mail_inbox`, `mail_wait`, `mail_pull`, `mail_send`, `mail_status`). The
 human watches a terminal dashboard and (in MANUAL mode) gates every inbound
 message. The design constraint is **context discipline**: no message ever
 enters an agent's context without an explicit tool call. The full project
-lives at <https://github.com/meetdave3/agentbus>.
+lives at <https://github.com/meetdave3/agentmail>.
 
 ## The MCP tool surface (verbatim — do not paraphrase loosely)
 
 | Tool         | Input                          | Returns                                                  | When to call                                                                                                                                                                  |
 | ------------ | ------------------------------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `bus_inbox`  | (none)                         | Headers list (id, from, ts, title, type). No bodies.     | When you want a quick non-blocking check of what's queued for you. Cheap on context.                                                                                          |
-| `bus_wait`   | `timeoutSec?` (default 1800)   | Same headers as `bus_inbox`, or `"timeout"`.             | When you have nothing useful to do until the peer responds. Blocks until an inbox message is visible or the timeout elapses. Returns immediately if your inbox is non-empty.  |
-| `bus_pull`   | `id` (from `bus_inbox`)        | The full message body and any reviewer edits/notes.      | The only path a body enters your context. Call deliberately, after `bus_inbox` shows a header worth reading.                                                                  |
-| `bus_send`   | `type`, `title`, `body`, `to?` | Acknowledgement with the new message id and status.      | When you need to hand work to the other agent or post a `note` to the human. Defaults `to` to the peer (the agent who is not you).                                            |
-| `bus_status` | `text` (max 200 chars)         | `"ok"` — the text is never echoed back.                  | To set a short "what I'm working on" string for the human's dashboard. Write-only.                                                                                            |
+| `mail_inbox`  | (none)                         | Headers list (id, from, ts, title, type). No bodies.     | When you want a quick non-blocking check of what's queued for you. Cheap on context.                                                                                          |
+| `mail_wait`   | `timeoutSec?` (default 1800)   | Same headers as `mail_inbox`, or `"timeout"`.             | When you have nothing useful to do until the peer responds. Blocks until an inbox message is visible or the timeout elapses. Returns immediately if your inbox is non-empty.  |
+| `mail_pull`   | `id` (from `mail_inbox`)        | The full message body and any reviewer edits/notes.      | The only path a body enters your context. Call deliberately, after `mail_inbox` shows a header worth reading.                                                                  |
+| `mail_send`   | `type`, `title`, `body`, `to?` | Acknowledgement with the new message id and status.      | When you need to hand work to the other agent or post a `note` to the human. Defaults `to` to the peer (the agent who is not you).                                            |
+| `mail_status` | `text` (max 200 chars)         | `"ok"` — the text is never echoed back.                  | To set a short "what I'm working on" string for the human's dashboard. Write-only.                                                                                            |
 
-Valid `type` values for `bus_send`:
+Valid `type` values for `mail_send`:
 
 - `prompt` — a task delegated to the recipient (typically planner → implementer)
 - `report-back` — a completion report (typically implementer → planner)
@@ -54,42 +54,42 @@ below assume that split. Adapt the role labels if the user's setup differs.
 ### Implementer loop (work agent)
 
 ```
-1. bus_wait                    ← block until a prompt arrives
-2. bus_pull <id>               ← read the full prompt
+1. mail_wait                    ← block until a prompt arrives
+2. mail_pull <id>               ← read the full prompt
 3. (do the work)
-4. bus_status "<short note>"   ← optional progress markers along the way
-5. bus_send report-back …      ← report completion to the planner
-6. bus_wait                    ← block for review-finding or green-light
-7. If review-finding → bus_pull, address the findings, goto 5.
-   If green-light    → bus_pull, then bus_send commit-pr-prompt (or stop).
+4. mail_status "<short note>"   ← optional progress markers along the way
+5. mail_send report-back …      ← report completion to the planner
+6. mail_wait                    ← block for review-finding or green-light
+7. If review-finding → mail_pull, address the findings, goto 5.
+   If green-light    → mail_pull, then mail_send commit-pr-prompt (or stop).
 ```
 
 ### Planner / reviewer loop
 
 ```
 1. (formulate the task with the user)
-2. bus_send prompt …           ← delegate
-3. bus_wait                    ← block until report-back or blockers
-4. bus_pull <id>               ← read the report
+2. mail_send prompt …           ← delegate
+3. mail_wait                    ← block until report-back or blockers
+4. mail_pull <id>               ← read the report
 5. Review:
-   - issues found  → bus_send review-finding …, goto 3
-   - looks good    → bus_send green-light …, optionally commit-pr-prompt
-   - blockers      → resolve with the human, then bus_send back with guidance
+   - issues found  → mail_send review-finding …, goto 3
+   - looks good    → mail_send green-light …, optionally commit-pr-prompt
+   - blockers      → resolve with the human, then mail_send back with guidance
 ```
 
 ### Hard rules to bake into both roles
 
-- **Never** start work without `bus_pull`. Headers alone are not the prompt.
-- **Never** poll `bus_inbox` in a loop. Use `bus_wait` — it's one blocking
+- **Never** start work without `mail_pull`. Headers alone are not the prompt.
+- **Never** poll `mail_inbox` in a loop. Use `mail_wait` — it's one blocking
   call instead of many context-spending ones.
 - **Never** send to yourself; the server rejects it.
 - **Never** assume the peer saw your message immediately. In MANUAL mode the
   human gates inbound — you have no visibility into when (or if) they
-  release it. Block on `bus_wait` and trust the wake.
-- **Never** wrap `bus_pull` output in commentary back to the bus. If the
+  release it. Block on `mail_wait` and trust the wake.
+- **Never** wrap `mail_pull` output in commentary back to the bus. If the
   planner sent you a prompt, work on it — don't echo the prompt back as a
   `note`.
-- `bus_status` is write-only — the human reads it, you do not. Don't expect
+- `mail_status` is write-only — the human reads it, you do not. Don't expect
   it to round-trip into your context.
 
 ## What to write into the project's agent instruction files
@@ -102,38 +102,38 @@ canonical names:
 - `.codex/AGENTS.md` — Codex-specific overrides, takes precedence over `AGENTS.md`
 
 Inspect what already exists. **Do not overwrite unrelated content.** Append
-or merge an `## agentbus coordination` section that contains the
+or merge an `## agentmail coordination` section that contains the
 implementer or reviewer loop as a literal snippet. Use the snippets below
 verbatim, edited only to reflect which role the agent in question plays.
 
 ### Snippet to merge into the implementer agent's file
 
 ```markdown
-## agentbus coordination
+## agentmail coordination
 
-You share this project with another AI coding agent via the `agentbus` MCP
+You share this project with another AI coding agent via the `agentmail` MCP
 server. Your role is **implementer**: you receive prompts, do the work, and
-report back for review. Coordinate exclusively through the `bus_*` tools —
+report back for review. Coordinate exclusively through the `mail_*` tools —
 do not ask the user to relay messages.
 
-**At the start of every session**, call `bus_inbox` once. If there are
+**At the start of every session**, call `mail_inbox` once. If there are
 headers, pull the most recent `prompt` or `review-finding` and start there.
 If the inbox is empty and the user hasn't given you a direct instruction,
-call `bus_wait` to block until work arrives.
+call `mail_wait` to block until work arrives.
 
 **Loop:**
 
-1. `bus_pull <id>` the inbound prompt.
+1. `mail_pull <id>` the inbound prompt.
 2. Do the work.
-3. `bus_status "<short note>"` for any non-trivial milestone (optional).
-4. `bus_send report-back` with a complete summary of what changed and any
+3. `mail_status "<short note>"` for any non-trivial milestone (optional).
+4. `mail_send report-back` with a complete summary of what changed and any
    open questions. The reviewer cannot see your terminal — your report-back
    is the entire signal.
-5. `bus_wait` for the reviewer's response.
+5. `mail_wait` for the reviewer's response.
 6. If `review-finding`, address the points and goto 4. If `green-light`,
    carry out any final instructions (e.g. `commit-pr-prompt`).
 
-**Never** poll `bus_inbox` in a loop — `bus_wait` is the blocking primitive.
+**Never** poll `mail_inbox` in a loop — `mail_wait` is the blocking primitive.
 **Never** send to yourself. Default `to` (the peer) is correct in almost
 every case.
 ```
@@ -141,28 +141,28 @@ every case.
 ### Snippet to merge into the planner/reviewer agent's file
 
 ```markdown
-## agentbus coordination
+## agentmail coordination
 
-You share this project with another AI coding agent via the `agentbus` MCP
+You share this project with another AI coding agent via the `agentmail` MCP
 server. Your role is **planner and reviewer**: you formulate prompts with
 the user, delegate to the implementer, and review what comes back.
-Coordinate exclusively through the `bus_*` tools.
+Coordinate exclusively through the `mail_*` tools.
 
-**At the start of every session**, call `bus_inbox` once. If there are
+**At the start of every session**, call `mail_inbox` once. If there are
 unread `report-back` or `blockers` messages, prioritise them.
 
 **Loop:**
 
 1. Work with the user to define the next task.
-2. `bus_send prompt` to the implementer with a self-contained brief.
-3. `bus_wait` for the response.
-4. `bus_pull <id>` the `report-back` or `blockers`.
+2. `mail_send prompt` to the implementer with a self-contained brief.
+3. `mail_wait` for the response.
+4. `mail_pull <id>` the `report-back` or `blockers`.
 5. Review:
-   - Issues → `bus_send review-finding` with specifics, goto 3.
-   - Approved → `bus_send green-light`, optionally a `commit-pr-prompt`.
-   - Blockers → resolve with the user, then `bus_send` back with guidance.
+   - Issues → `mail_send review-finding` with specifics, goto 3.
+   - Approved → `mail_send green-light`, optionally a `commit-pr-prompt`.
+   - Blockers → resolve with the user, then `mail_send` back with guidance.
 
-**Never** poll `bus_inbox` in a loop — use `bus_wait`. **Never** send a
+**Never** poll `mail_inbox` in a loop — use `mail_wait`. **Never** send a
 `prompt` without the context the implementer needs to act on it alone; the
 implementer cannot see your conversation with the user.
 ```
@@ -170,16 +170,16 @@ implementer cannot see your conversation with the user.
 ### If the user hasn't told you which agent plays which role
 
 Default assignment: **Claude implements, Codex plans + reviews.** This is
-the convention most agentbus users run. If unsure, ask the user once before
+the convention most agentmail users run. If unsure, ask the user once before
 writing the snippets, then proceed.
 
 ## What you should NOT do
 
 - Do not invent new MCP tools or new `type` values. The five tools and
   seven types above are the entire surface.
-- Do not write instructions that ask the agent to call `bus_inbox` on a
-  timer. The whole point of `bus_wait` is to avoid that pattern.
-- Do not document `bus_status` as a way to communicate with the peer. It is
+- Do not write instructions that ask the agent to call `mail_inbox` on a
+  timer. The whole point of `mail_wait` is to avoid that pattern.
+- Do not document `mail_status` as a way to communicate with the peer. It is
   for the human's TUI only and is never visible to the peer agent.
 - Do not write CLAUDE.md / AGENTS.md content that contradicts the project's
   existing conventions. If you see existing content that conflicts (e.g. a
@@ -193,10 +193,10 @@ writing the snippets, then proceed.
 After editing, do a final read-through of every file you changed and
 confirm:
 
-1. The `## agentbus coordination` section exists exactly once.
+1. The `## agentmail coordination` section exists exactly once.
 2. The role (implementer vs planner) matches what the user intends.
-3. No tool name is misspelled (it's `bus_inbox`, `bus_wait`, `bus_pull`,
-   `bus_send`, `bus_status` — all lowercase, all snake_case).
+3. No tool name is misspelled (it's `mail_inbox`, `mail_wait`, `mail_pull`,
+   `mail_send`, `mail_status` — all lowercase, all snake_case).
 4. You have not removed or reordered unrelated sections.
 
 Report back to the user with a one-line summary per file you changed.

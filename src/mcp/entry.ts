@@ -1,6 +1,6 @@
 // Node-runnable entrypoint for the stdio MCP server.
 //
-// `agentbus mcp --as <agent>` (a Bun process) re-execs into Node with this
+// `agentmail mcp --as <agent>` (a Bun process) re-execs into Node with this
 // file as the script. We don't run the MCP server under Bun because Bun
 // 1.2.x buffers process.stdout while a stdin "data" listener is active —
 // which delays the `initialize` response past Codex's startup_timeout_sec

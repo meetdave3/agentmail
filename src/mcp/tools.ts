@@ -17,7 +17,7 @@ function errorResult(text: string): CallToolResult {
 }
 
 /**
- * Registers the four bus tools on an MCP server, scoped to `me` (the calling
+ * Registers the five mail tools on an MCP server, scoped to `me` (the calling
  * agent's identity). All bodies are returned verbatim with no decoration —
  * the agent decides when to spend context.
  */
@@ -29,11 +29,11 @@ export function registerBusTools(
   const otherAgent: AgentId = me === "claude" ? "codex" : "claude";
 
   server.registerTool(
-    "bus_inbox",
+    "mail_inbox",
     {
       title: "List inbox headers",
       description:
-        "List headers of messages addressed to you that are awaiting pull. Returns id, from, ts, title, type only — no bodies. Cheap on context. Call bus_pull(id) to read a body.",
+        "List headers of messages addressed to you that are awaiting pull. Returns id, from, ts, title, type only — no bodies. Cheap on context. Call mail_pull(id) to read a body.",
       inputSchema: {},
     },
     async (): Promise<CallToolResult> => {
@@ -52,11 +52,11 @@ export function registerBusTools(
   );
 
   server.registerTool(
-    "bus_wait",
+    "mail_wait",
     {
       title: "Wait for inbox messages",
       description:
-        "Block until a message addressed to you is visible in your inbox, or the timeout elapses. Returns the same header listing as bus_inbox (id, from, ts, title, type — no bodies). If your inbox already has messages, returns immediately. Use this to coordinate with the other agent without polling. Default timeout 30 minutes.",
+        "Block until a message addressed to you is visible in your inbox, or the timeout elapses. Returns the same header listing as mail_inbox (id, from, ts, title, type — no bodies). If your inbox already has messages, returns immediately. Use this to coordinate with the other agent without polling. Default timeout 30 minutes.",
       inputSchema: {
         timeoutSec: z
           .number()
@@ -88,13 +88,13 @@ export function registerBusTools(
   );
 
   server.registerTool(
-    "bus_pull",
+    "mail_pull",
     {
       title: "Pull a message body",
       description:
-        "Fetch the full body of a single message by id and mark it consumed. This is the only path a message body enters your context. Call after bus_inbox identifies a message worth reading.",
+        "Fetch the full body of a single message by id and mark it consumed. This is the only path a message body enters your context. Call after mail_inbox identifies a message worth reading.",
       inputSchema: {
-        id: z.string().min(1).describe("Message id from bus_inbox"),
+        id: z.string().min(1).describe("Message id from mail_inbox"),
       },
     },
     async ({ id }): Promise<CallToolResult> => {
@@ -119,7 +119,7 @@ export function registerBusTools(
   );
 
   server.registerTool(
-    "bus_send",
+    "mail_send",
     {
       title: "Send a message",
       description: `Send a tagged message to ${otherAgent}. If ${otherAgent} is in MANUAL mode, the human reviews before it lands. If AUTO, it lands in their inbox immediately. You will not see a body in return — just an acknowledgement.`,
@@ -169,7 +169,7 @@ export function registerBusTools(
   );
 
   server.registerTool(
-    "bus_status",
+    "mail_status",
     {
       title: "Set status",
       description:
