@@ -1,3 +1,4 @@
+import { Agent } from "undici";
 import {
   busUrl,
   readConfig,
@@ -10,6 +11,16 @@ import type {
   Message,
   MessageType,
 } from "../shared/types.ts";
+
+// Node's global fetch (undici) defaults to a 5-minute headersTimeout, which
+// kills our 30-minute long-poll mid-flight as "fetch failed". This agent is
+// used only by wait() to disable both timeouts. Other calls keep the
+// defaults — they're short and benefit from the safety net.
+const longPollAgent = new Agent({
+  headersTimeout: 0,
+  bodyTimeout: 0,
+  keepAliveTimeout: 30 * 60 * 1000,
+});
 
 export class BusClient {
   readonly paths: ResolvedPaths;
@@ -70,11 +81,15 @@ export class BusClient {
     agent: AgentId,
     timeoutSec: number,
   ): Promise<{ inbox: InboxEntry[]; timedOut: boolean }> {
-    // No client-side fetch timeout — the server caps at 1800s and returns
-    // before then. The MCP host's own tool-call timeout is the ultimate ceiling.
-    return await this.get<{ inbox: InboxEntry[]; timedOut: boolean }>(
-      `/api/wait?agent=${encodeURIComponent(agent)}&timeoutSec=${timeoutSec}`,
-    );
+    // Use a dedicated dispatcher with no headers/body timeout so the long-poll
+    // can outlive Node's 5-minute default. The MCP host's own tool-call
+    // timeout is the ultimate ceiling.
+    const url = `${this.base}/api/wait?agent=${encodeURIComponent(agent)}&timeoutSec=${timeoutSec}`;
+    const res = await fetch(url, {
+      // @ts-expect-error: dispatcher is a Node-undici extension; not in lib.dom
+      dispatcher: longPollAgent,
+    });
+    return this.parse<{ inbox: InboxEntry[]; timedOut: boolean }>(res, "GET /api/wait");
   }
 
   async pull(agent: AgentId, id: string): Promise<Message> {

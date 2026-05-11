@@ -26,6 +26,9 @@ export async function startServer(opts: StartOptions = {}): Promise<{
 
   const server = Bun.serve({
     port: config.port,
+    // Disable the 10-second per-connection idle timeout — /api/wait holds
+    // requests open for up to 30 minutes with no bytes flowing.
+    idleTimeout: 0,
     fetch(req, srv) {
       const url = new URL(req.url);
       if (url.pathname === "/ws") {
