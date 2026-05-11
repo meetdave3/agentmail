@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { runDefault } from "./default.ts";
 import { runInit } from "./init.ts";
 import { runStart } from "./start.ts";
 import { runStop } from "./stop.ts";
@@ -12,13 +13,15 @@ import { runStatus } from "./status.ts";
 const HELP = `${chalk.bold("agentbus")} — local pull-only message bus between AI coding agents
 
 ${chalk.bold("Usage")}
+  agentbus                      Start the daemon (if needed) and open the dashboard
   agentbus <command> [options]
 
 ${chalk.bold("Commands")}
+  ${chalk.dim("(no command)")}                  Init if needed, start the daemon, open the TUI
   init                          Scaffold ./.bus and print MCP snippets
   start [--detach]              Start the bus daemon
   stop                          Stop the bus daemon
-  tui                           Open the Ink dashboard
+  tui                           Open the Ink dashboard (daemon must be running)
   log [--follow]                Tail the message log
   mode <agent> <auto|manual>    Set an agent's inbound mode
   send <to> <type> <title> [-]  Send a message (body from stdin if "-" or omitted)
@@ -36,6 +39,8 @@ export async function runCli(argv: string[]): Promise<void> {
   try {
     switch (cmd) {
       case undefined:
+        await runDefault();
+        return;
       case "help":
       case "-h":
       case "--help":

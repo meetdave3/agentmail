@@ -1,4 +1,5 @@
 import chalk from "chalk";
+import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolvePaths } from "../shared/config.ts";
 import { startServer } from "../server/index.ts";
@@ -18,13 +19,14 @@ export async function runStart(argv: string[]): Promise<void> {
   if (detach) {
     const exe = process.execPath;
     const args = [process.argv[1] ?? "agentbus", "start"];
-    const proc = Bun.spawn([exe, ...args], {
-      stdout: "ignore",
-      stderr: "ignore",
-      stdin: "ignore",
+    // `detached: true` puts the child in its own session (setsid) so it
+    // survives the parent shell, the TUI, and any process-group signals.
+    const child = spawn(exe, args, {
+      detached: true,
+      stdio: "ignore",
     });
-    proc.unref();
-    console.error(chalk.green(`bus started in background (pid ${proc.pid})`));
+    child.unref();
+    console.error(chalk.green(`bus started in background (pid ${child.pid})`));
     return;
   }
 

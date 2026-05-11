@@ -88,10 +88,11 @@ agentbus help
 From the root of any project you want to coordinate agents in:
 
 ```bash
-agentbus init         # writes .bus/config.json, prints MCP wiring snippets
+agentbus
 ```
 
-Paste the snippets it prints into:
+That's it. The first run scaffolds `.bus/` and prints MCP wiring snippets to
+paste into your agents' configs:
 
 - **Claude** → `.mcp.json` in the project root
 - **Codex** → `.codex/config.toml` (or merge with an existing block)
@@ -99,11 +100,18 @@ Paste the snippets it prints into:
 Both snippets set `AGENTBUS_DIR` to this project's `.bus/` so the MCP server
 finds the right daemon when the agent CLI launches it.
 
-Then in two terminal panes:
+Paste them, then run `agentbus` again. This time it starts the daemon (in
+the background, surviving the dashboard) and opens the TUI:
 
-```bash
-agentbus start        # boot the daemon (foreground)
-agentbus tui          # live dashboard
+```
+┌─ agentbus · backoffice ─────────────── 127.0.0.1:7777 ● live ─┐
+│ CLAUDE [1] MANUAL    │ CODEX  [2] MANUAL                       │
+│ status: —            │ status: reviewing diff                  │
+│ pending for me: 0    │ pending for me: 1                       │
+└──────────────────────┴─────────────────────────────────────────┘
+LIVE LOG
+PENDING REVIEW (1) · [j/k] move · [r]elease · [d]rop · [g] release all
+▸ codex → claude [prompt] audit auth middleware
 ```
 
 Add `.bus/` to your project's `.gitignore` (it holds local sqlite state and a
@@ -111,6 +119,13 @@ pid file).
 
 Start your agent CLIs from the same project directory. They'll automatically
 expose the four `bus_*` tools.
+
+**Shutdown.** Closing the TUI (`q`) leaves the daemon running so in-flight
+agent calls don't break. To fully stop:
+
+```bash
+agentbus stop
+```
 
 ## MCP tools (the entire surface)
 
