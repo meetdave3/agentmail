@@ -172,8 +172,47 @@ async function http<T>(url: string, method: "GET" | "POST", body?: unknown): Pro
   return (await res.json()) as T;
 }
 
+async function assertPerProjectPortUniqueness(r: Reporter): Promise<void> {
+  // Two fresh `agentmail init` runs in separate dirs must end up with
+  // different ports. This is the property that prevents Project B's MCP
+  // client from accidentally connecting to Project A's daemon.
+  const dirs = [
+    mkdtempSync(join(tmpdir(), "agentmail-port-a-")),
+    mkdtempSync(join(tmpdir(), "agentmail-port-b-")),
+  ];
+  try {
+    const ports: number[] = [];
+    for (const dir of dirs) {
+      const proc = spawn("bun", [BIN, "init"], {
+        cwd: dir,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      await new Promise((resolve) => proc.on("close", resolve));
+      const cfg = JSON.parse(
+        readFileSync(join(dir, ".mail", "config.json"), "utf8"),
+      ) as { port: number };
+      ports.push(cfg.port);
+    }
+    r.assert(
+      ports[0] !== ports[1],
+      "two fresh init runs pick distinct ports",
+      `got: ${ports[0]} and ${ports[1]}`,
+    );
+  } finally {
+    for (const dir of dirs) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const r = new Reporter();
+  await assertPerProjectPortUniqueness(r);
+
   const tempRoot = mkdtempSync(join(tmpdir(), "agentmail-e2e-"));
   const busDir = join(tempRoot, ".mail");
 

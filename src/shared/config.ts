@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { type BusConfig, DEFAULT_PORT } from "./types.ts";
 
@@ -45,12 +46,39 @@ export function ensureBusDir(paths: ResolvedPaths): void {
   }
 }
 
-export function defaultConfig(): BusConfig {
+export function defaultConfig(port: number = DEFAULT_PORT): BusConfig {
   return {
-    port: DEFAULT_PORT,
+    port,
     modes: { claude: "manual", codex: "manual" },
     createdAt: Date.now(),
   };
+}
+
+/**
+ * Pick a TCP port the OS thinks is free on 127.0.0.1. Used at `init` time so
+ * each project's `.mail/config.json` gets its own port — without this, every
+ * project would default to 7777 and MCP clients from one project would
+ * silently connect to whichever daemon happened to bind that port first.
+ *
+ * There's a classic TOCTOU here: by the time the daemon actually binds, the
+ * port could be in use. We accept that — collisions get a friendly error
+ * from `startServer` telling the user to re-run `init`.
+ */
+export function pickFreePort(): Promise<number> {
+  return new Promise((resolveP, rejectP) => {
+    const srv = createServer();
+    srv.once("error", rejectP);
+    srv.listen(0, "127.0.0.1", () => {
+      const addr = srv.address();
+      if (!addr || typeof addr === "string") {
+        srv.close();
+        rejectP(new Error("could not determine free port"));
+        return;
+      }
+      const port = addr.port;
+      srv.close((err) => (err ? rejectP(err) : resolveP(port)));
+    });
+  });
 }
 
 export function readConfig(paths: ResolvedPaths): BusConfig {

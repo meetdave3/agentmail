@@ -3,19 +3,45 @@ import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import {
   defaultConfig,
+  pickFreePort,
+  readConfig,
   resolvePaths,
   writeConfig,
 } from "../shared/config.ts";
+import { DEFAULT_PORT } from "../shared/types.ts";
 
 export async function runInit(): Promise<void> {
   const cwd = process.cwd();
   const paths = resolvePaths(cwd);
   const project = basename(paths.root);
 
+  let resolvedPort: number;
   if (existsSync(paths.configPath)) {
-    console.error(chalk.yellow(`agentmail already initialized at ${paths.busDir}`));
+    const existing = readConfig(paths);
+    if (existing.port === DEFAULT_PORT) {
+      // Legacy artifact: every project used to default to 7777, which meant
+      // the MCP clients of unrelated projects all connected to whichever
+      // daemon happened to win the bind. Re-roll to a project-specific port.
+      const fresh = await pickFreePort();
+      writeConfig(paths, { ...existing, port: fresh });
+      resolvedPort = fresh;
+      console.error(
+        chalk.yellow(
+          `migrated this project from the shared default port ${DEFAULT_PORT} to ${fresh}.`,
+        ),
+      );
+      console.error(
+        chalk.yellow(
+          `if a daemon is running here, restart it (\`agentmail stop && agentmail\`) and restart any editor MCP sessions for this project.`,
+        ),
+      );
+    } else {
+      resolvedPort = existing.port;
+      console.error(chalk.yellow(`agentmail already initialized at ${paths.busDir}`));
+    }
   } else {
-    writeConfig(paths, defaultConfig());
+    resolvedPort = await pickFreePort();
+    writeConfig(paths, defaultConfig(resolvedPort));
     console.error(chalk.green(`wrote ${paths.configPath}`));
   }
 
@@ -50,6 +76,7 @@ export async function runInit(): Promise<void> {
 ${chalk.bold(`agentmail initialized for "${project}"`)}
   mail dir  : ${paths.busDir}
   db        : ${paths.dbPath}
+  port      : ${resolvedPort}
 
 ${chalk.bold("Next steps")}
   1. Wire Claude — paste into ${chalk.cyan(".mcp.json")} (project root):

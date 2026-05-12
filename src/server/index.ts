@@ -24,33 +24,46 @@ export async function startServer(opts: StartOptions = {}): Promise<{
     if (!opts.silent) console.error("[agentmail]", ...args);
   };
 
-  const server = Bun.serve({
-    port: config.port,
-    // Disable the 10-second per-connection idle timeout — /api/wait holds
-    // requests open for up to 30 minutes with no bytes flowing.
-    idleTimeout: 0,
-    fetch(req, srv) {
-      const url = new URL(req.url);
-      if (url.pathname === "/ws") {
-        const ok = srv.upgrade(req);
-        if (ok) return undefined;
-        return new Response("ws upgrade failed", { status: 400 });
+  const server = (() => {
+    try {
+      return Bun.serve({
+        port: config.port,
+        // Disable the 10-second per-connection idle timeout — /api/wait holds
+        // requests open for up to 30 minutes with no bytes flowing.
+        idleTimeout: 0,
+        fetch(req, srv) {
+          const url = new URL(req.url);
+          if (url.pathname === "/ws") {
+            const ok = srv.upgrade(req);
+            if (ok) return undefined;
+            return new Response("ws upgrade failed", { status: 400 });
+          }
+          return app.fetch(req);
+        },
+        websocket: {
+          open(ws) {
+            hub.add(ws as unknown as BusWs);
+            ws.send(JSON.stringify({ kind: "hello", ts: Date.now() }));
+          },
+          message() {
+            // Inbound WS messages are ignored — the bus is HTTP-write, WS-broadcast.
+          },
+          close(ws) {
+            hub.remove(ws as unknown as BusWs);
+          },
+        },
+      });
+    } catch (err) {
+      if (isAddrInUse(err)) {
+        console.error(
+          `[agentmail] port ${config.port} is already in use. Another agentmail project may be running on it. ` +
+            `Re-run \`agentmail init\` in this project to pick a fresh port.`,
+        );
       }
-      return app.fetch(req);
-    },
-    websocket: {
-      open(ws) {
-        hub.add(ws as unknown as BusWs);
-        ws.send(JSON.stringify({ kind: "hello", ts: Date.now() }));
-      },
-      message() {
-        // Inbound WS messages are ignored — the bus is HTTP-write, WS-broadcast.
-      },
-      close(ws) {
-        hub.remove(ws as unknown as BusWs);
-      },
-    },
-  });
+      store.close();
+      throw err;
+    }
+  })();
 
   // PID file for `agentmail stop`.
   writeFileSync(paths.pidPath, String(process.pid), "utf8");
@@ -78,4 +91,11 @@ export async function startServer(opts: StartOptions = {}): Promise<{
 
   const port = server.port ?? config.port;
   return { stop, port, url: `http://127.0.0.1:${port}` };
+}
+
+function isAddrInUse(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: unknown; message?: unknown };
+  if (e.code === "EADDRINUSE") return true;
+  return typeof e.message === "string" && /eaddrinuse|address.*in use/i.test(e.message);
 }
