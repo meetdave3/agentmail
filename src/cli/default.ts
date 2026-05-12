@@ -28,11 +28,6 @@ export async function runDefault(): Promise<void> {
 
   if (!existsSync(paths.configPath)) {
     await runInit();
-    console.error(
-      chalk.bold(
-        `\nFirst-time setup complete. Paste the snippets above, then run \`agentmail\` again.`,
-      ),
-    );
     return;
   }
 

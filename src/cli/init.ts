@@ -1,6 +1,8 @@
 import chalk from "chalk";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename } from "node:path";
+import * as readline from "node:readline/promises";
 import {
   defaultConfig,
   pickFreePort,
@@ -9,6 +11,9 @@ import {
   writeConfig,
 } from "../shared/config.ts";
 import { DEFAULT_PORT } from "../shared/types.ts";
+
+const LLMS_URL =
+  "https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt";
 
 export async function runInit(): Promise<void> {
   const cwd = process.cwd();
@@ -45,32 +50,7 @@ export async function runInit(): Promise<void> {
     console.error(chalk.green(`wrote ${paths.configPath}`));
   }
 
-  const claudeSnippet = JSON.stringify(
-    {
-      mcpServers: {
-        agentmail: {
-          command: "agentmail",
-          args: ["mcp", "--as", "claude"],
-          env: { AGENTMAIL_DIR: paths.busDir },
-        },
-      },
-    },
-    null,
-    2,
-  );
-
-  // Codex's MCP client needs a generous startup_timeout_sec — the default 10s
-  // is tight when other MCP servers are starting in parallel. 30s matches
-  // what other production MCP entries use (e.g. mongodb-mcp-server).
-  const codexSnippet = [
-    "[mcp_servers.agentmail]",
-    'command = "agentmail"',
-    'args = ["mcp", "--as", "codex"]',
-    "startup_timeout_sec = 30",
-    "",
-    "[mcp_servers.agentmail.env]",
-    `AGENTMAIL_DIR = "${paths.busDir}"`,
-  ].join("\n");
+  const bootstrapPrompt = buildBootstrapPrompt(paths.busDir);
 
   process.stdout.write(`
 ${chalk.bold(`agentmail initialized for "${project}"`)}
@@ -78,25 +58,96 @@ ${chalk.bold(`agentmail initialized for "${project}"`)}
   db        : ${paths.dbPath}
   port      : ${resolvedPort}
 
-${chalk.bold("Next steps")}
-  1. Wire Claude — paste into ${chalk.cyan(".mcp.json")} (project root):
+${chalk.bold("Wire it up — copy this prompt into Claude Code, Codex, or any MCP-aware agent:")}
 
-${indent(claudeSnippet)}
+${indent(bootstrapPrompt, "  │ ")}
 
-  2. Wire Codex — paste into ${chalk.cyan(".codex/config.toml")} (or merge into existing):
+That prompt points the agent at ${chalk.cyan(LLMS_URL)}, which walks
+through writing ${chalk.cyan(".mcp.json")}, ${chalk.cyan(".codex/config.toml")}, and the
+per-agent instruction sections in ${chalk.cyan("CLAUDE.md")} / ${chalk.cyan("AGENTS.md")}.
 
-${indent(codexSnippet)}
-
-  3. Run ${chalk.cyan("agentmail")} again. The daemon starts in the background and the dashboard opens.
-
-  4. Restart any Claude or Codex sessions you had open before pasting the snippets — they need
-     to re-read the MCP config. New sessions started in this directory will see five mail tools:
-       ${chalk.cyan("inbox")}   — list headers of messages awaiting you (no bodies)
-       ${chalk.cyan("wait")}    — block until a new message arrives (long-poll, no busy-loop)
-       ${chalk.cyan("pull")}    — fetch a single message body by id (spends context)
-       ${chalk.cyan("send")}    — send a message to the other agent
-       ${chalk.cyan("status")}  — set "what I'm working on" (write-only, no echo)
 `);
+
+  const choice = await promptAgentChoice();
+  if (choice === "skip") {
+    process.stdout.write(
+      `${chalk.dim("skipped — paste the prompt above into your agent of choice when ready.")}\n` +
+        `${chalk.dim("after that, run")} ${chalk.cyan("agentmail")} ${chalk.dim("to start the daemon and open the dashboard.")}\n`,
+    );
+    return;
+  }
+
+  process.stdout.write(
+    `\n${chalk.dim(`launching ${choice} with the bootstrap prompt …`)}\n` +
+      `${chalk.dim(`when it finishes, run`)} ${chalk.cyan("agentmail")} ${chalk.dim("to start the daemon and open the dashboard.")}\n\n`,
+  );
+  await spawnAgent(choice, bootstrapPrompt, paths.busDir);
+}
+
+function buildBootstrapPrompt(absMailDir: string): string {
+  return [
+    `Wire up agentmail in this project.`,
+    ``,
+    `1. Read ${LLMS_URL} for the full setup instructions.`,
+    `2. Follow it. The agentmail state directory for this project is:`,
+    `   ${absMailDir}`,
+    `   Use that absolute path as AGENTMAIL_DIR in the MCP server config.`,
+    `3. When you finish, summarise what you changed in one line per file.`,
+  ].join("\n");
+}
+
+async function promptAgentChoice(): Promise<"claude" | "codex" | "skip"> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return "skip";
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  try {
+    const answer = (
+      await rl.question(
+        chalk.bold("Run setup now? ") +
+          chalk.dim("[c]laude / co[d]ex / [s]kip ") +
+          chalk.dim("(default: skip): "),
+      )
+    )
+      .trim()
+      .toLowerCase();
+    if (answer === "c" || answer === "claude") return "claude";
+    if (answer === "d" || answer === "codex") return "codex";
+    return "skip";
+  } finally {
+    rl.close();
+  }
+}
+
+function spawnAgent(
+  cli: "claude" | "codex",
+  prompt: string,
+  busDir: string,
+): Promise<void> {
+  return new Promise((resolvePromise) => {
+    const proc = spawn(cli, [prompt], {
+      stdio: "inherit",
+      env: { ...process.env, AGENTMAIL_DIR: busDir },
+    });
+    proc.on("error", (err) => {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        process.stderr.write(
+          chalk.red(
+            `\ncould not launch \`${cli}\` — is it installed and on your PATH?\n`,
+          ) + chalk.dim(`paste the prompt above into your agent manually.\n`),
+        );
+      } else {
+        process.stderr.write(
+          chalk.red(`\nfailed to launch ${cli}: ${err.message}\n`) +
+            chalk.dim(`paste the prompt above into your agent manually.\n`),
+        );
+      }
+      resolvePromise();
+    });
+    proc.on("exit", () => resolvePromise());
+  });
 }
 
 function indent(text: string, prefix: string = "      "): string {

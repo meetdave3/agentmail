@@ -1,14 +1,12 @@
 # agentmail — bootstrap guide for setup LLMs
 
 You are reading this because the user wants to wire **agentmail** into the
-project you're currently in. Your job is to update this project's agent
-instruction files (`CLAUDE.md`, `AGENTS.md`, `.codex/AGENTS.md`, or
-equivalent) so the agents that run in this project use the `mail_*` MCP tools
-correctly.
+project you're currently in. Your job is to take this project from "the daemon
+is scaffolded" to "both agents can coordinate through it."
 
 This is a one-shot bootstrap task. After this, the running agents will read
-the instructions you wrote into their per-session prompt — they will not
-re-read this file.
+the per-project instructions you wrote into their session prompt — they will
+not re-read this file.
 
 The canonical URL of this file is:
 <https://raw.githubusercontent.com/meetdave3/agentmail/main/llms.txt>
@@ -16,22 +14,105 @@ The canonical URL of this file is:
 ## What agentmail is, in one paragraph
 
 agentmail is a local, pull-only message bus between two CLI coding agents
-(typically Claude Code and OpenAI Codex). Each agent has access to five MCP
-tools (`inbox`, `wait`, `pull`, `send`, `status`). The
-human watches a terminal dashboard and (in MANUAL mode) gates every inbound
-message. The design constraint is **context discipline**: no message ever
-enters an agent's context without an explicit tool call. The full project
-lives at <https://github.com/meetdave3/agentmail>.
+(typically Claude Code and OpenAI Codex). Each agent gets five MCP tools
+(`inbox`, `wait`, `pull`, `send`, `status`). The human watches a terminal
+dashboard and (in MANUAL mode) gates every inbound message. The design
+constraint is **context discipline**: no message ever enters an agent's
+context without an explicit tool call. The full project lives at
+<https://github.com/meetdave3/agentmail>.
 
-## The MCP tool surface (verbatim — do not paraphrase loosely)
+## Step 0 — Confirm the daemon is scaffolded
 
-| Tool         | Input                          | Returns                                                  | When to call                                                                                                                                                                  |
-| ------------ | ------------------------------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+Before you do anything else, verify `./.mail/config.json` exists at the
+project root. If it does not, the user has not run `agentmail init` yet.
+Stop and ask them to run it before continuing — without `.mail/config.json`
+you do not know which port this project's daemon binds to and the MCP
+wiring will be wrong.
+
+When `.mail/config.json` exists, read it. The two fields you care about:
+
+- `port` — the daemon's loopback port. Each project picks a unique one.
+- The absolute path of the `.mail/` directory itself — both MCP clients
+  need it as `AGENTMAIL_DIR` so the spawned MCP server resolves the right
+  daemon.
+
+## Step 1 — Wire the MCP servers into Claude and Codex
+
+Each agent CLI has its own MCP config format. Write **only** the agent
+configs the user actually uses — if there is no `.codex/` directory and the
+user only runs Claude, skip the Codex block, and vice versa. Ask if you
+are not sure.
+
+### Claude Code → `.mcp.json` at the project root
+
+Create or merge into `./.mcp.json`. Replace `<ABS_PATH_TO_DOT_MAIL>` with
+the absolute path to this project's `.mail/` directory.
+
+```json
+{
+  "mcpServers": {
+    "agentmail": {
+      "command": "agentmail",
+      "args": ["mcp", "--as", "claude"],
+      "env": { "AGENTMAIL_DIR": "<ABS_PATH_TO_DOT_MAIL>" }
+    }
+  }
+}
+```
+
+If `.mcp.json` already exists with other servers, add the `agentmail` entry
+inside the existing `mcpServers` object — do not overwrite the file.
+
+### Codex → `.codex/config.toml` at the project root
+
+Create or merge into `./.codex/config.toml`. Replace
+`<ABS_PATH_TO_DOT_MAIL>` with the absolute path to this project's `.mail/`.
+
+```toml
+[mcp_servers.agentmail]
+command = "agentmail"
+args = ["mcp", "--as", "codex"]
+startup_timeout_sec = 30
+
+[mcp_servers.agentmail.env]
+AGENTMAIL_DIR = "<ABS_PATH_TO_DOT_MAIL>"
+```
+
+The `startup_timeout_sec = 30` is intentional — Codex's default 10s is
+tight when other MCP servers start in parallel.
+
+If either config file already exists, merge — do not overwrite.
+
+## Step 2 — Tell each agent how to coordinate
+
+Append (or merge) an `## agentmail coordination` section into the
+project's per-agent instruction files at the project root. Canonical names:
+
+- `CLAUDE.md` — read by Claude Code
+- `AGENTS.md` — read by Codex (and some other tools)
+- `.codex/AGENTS.md` — Codex-specific overrides, takes precedence over `AGENTS.md`
+
+**Default role assignment: Claude implements, Codex plans + reviews.** This
+is the convention most agentmail users run. If unsure, ask the user once,
+then proceed.
+
+Use the snippets in [Step 4](#step-4--the-snippets) below verbatim, edited
+only to reflect which role each agent plays. Do not invent your own
+phrasings — these snippets are tuned for context cost.
+
+## Step 3 — The MCP tool surface (verbatim — do not paraphrase loosely)
+
+| Tool     | Input                          | Returns                                                  | When to call                                                                                                                                                                  |
+| -------- | ------------------------------ | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `inbox`  | (none)                         | Headers list (id, from, ts, title, type). No bodies.     | When you want a quick non-blocking check of what's queued for you. Cheap on context.                                                                                          |
-| `wait`   | `timeoutSec?` (default 1800)   | Same headers as `inbox`, or `"timeout"`.             | When you have nothing useful to do until the peer responds. Blocks until an inbox message is visible or the timeout elapses. Returns immediately if your inbox is non-empty.  |
-| `pull`   | `id` (from `inbox`)        | The full message body and any reviewer edits/notes.      | The only path a body enters your context. Call deliberately, after `inbox` shows a header worth reading.                                                                  |
+| `wait`   | `timeoutSec?` (default 1800)   | Same headers as `inbox`, or `"timeout"`.                 | When you have nothing useful to do until the peer responds. Blocks until an inbox message is visible or the timeout elapses. Returns immediately if your inbox is non-empty.  |
+| `pull`   | `id` (from `inbox`)            | The full message body and any reviewer edits/notes.      | The only path a body enters your context. Call deliberately, after `inbox` shows a header worth reading.                                                                      |
 | `send`   | `type`, `title`, `body`, `to?` | Acknowledgement with the new message id and status.      | When you need to hand work to the other agent or post a `note` to the human. Defaults `to` to the peer (the agent who is not you).                                            |
 | `status` | `text` (max 200 chars)         | `"ok"` — the text is never echoed back.                  | To set a short "what I'm working on" string for the human's dashboard. Write-only.                                                                                            |
+
+The MCP server registers the tools under those exact names. In Claude
+Code you may see them surface as `mcp__agentmail__inbox` and so on — that
+is the host's namespacing, not a different tool name.
 
 Valid `type` values for `send`:
 
@@ -45,74 +126,25 @@ Valid `type` values for `send`:
 
 `to` values: `"claude"`, `"codex"`, `"user"`. You cannot send to yourself.
 
-## Recommended workflow patterns
-
-The bus is workflow-agnostic, but most users run a **planner ↔ implementer**
-split: one agent plans and reviews, the other implements. The patterns
-below assume that split. Adapt the role labels if the user's setup differs.
-
-### Implementer loop (work agent)
-
-```
-1. wait                    ← block until a prompt arrives
-2. pull <id>               ← read the full prompt
-3. (do the work)
-4. status "<short note>"   ← optional progress markers along the way
-5. send report-back …      ← report completion to the planner
-6. wait                    ← block for review-finding or green-light
-7. If review-finding → pull, address the findings, goto 5.
-   If green-light    → pull, then send commit-pr-prompt (or stop).
-```
-
-### Planner / reviewer loop
-
-```
-1. (formulate the task with the user)
-2. send prompt …           ← delegate
-3. wait                    ← block until report-back or blockers
-4. pull <id>               ← read the report
-5. Review:
-   - issues found  → send review-finding …, goto 3
-   - looks good    → send green-light …, optionally commit-pr-prompt
-   - blockers      → resolve with the human, then send back with guidance
-```
-
 ### Hard rules to bake into both roles
 
 - **Never** start work without `pull`. Headers alone are not the prompt.
-- **Never** poll `inbox` in a loop. Use `wait` — it's one blocking
-  call instead of many context-spending ones.
+- **Never** poll `inbox` in a loop. Use `wait` — it's one blocking call
+  instead of many context-spending ones.
 - **`wait` is the default blocking primitive.** Prefer it over `inbox`
   even at session start — it returns immediately if the inbox is non-empty.
-- **Avoid wake+pull cycles that don't transfer actionable work.** If you
-  have nothing to hand the peer, don't send a message just to close the
-  loop.
 - **`status` is human-visible only.** It is not peer communication and
   never round-trips back into agent context — don't use it to "signal"
   the other agent.
 - **Never** send to yourself; the server rejects it.
-- **Never** assume the peer saw your message immediately. In MANUAL mode the
-  human gates inbound — you have no visibility into when (or if) they
+- **Never** assume the peer saw your message immediately. In MANUAL mode
+  the human gates inbound — you have no visibility into when (or if) they
   release it. Block on `wait` and trust the wake.
 - **Never** wrap `pull` output in commentary back to the bus. If the
   planner sent you a prompt, work on it — don't echo the prompt back as a
   `note`.
-- `status` is write-only — the human reads it, you do not. Don't expect
-  it to round-trip into your context.
 
-## What to write into the project's agent instruction files
-
-The user keeps per-agent instruction files at the project root. The
-canonical names:
-
-- `CLAUDE.md` — read by Claude Code
-- `AGENTS.md` — read by OpenAI Codex (and some other tools)
-- `.codex/AGENTS.md` — Codex-specific overrides, takes precedence over `AGENTS.md`
-
-Inspect what already exists. **Do not overwrite unrelated content.** Append
-or merge an `## agentmail coordination` section that contains the
-implementer or reviewer loop as a literal snippet. Use the snippets below
-verbatim, edited only to reflect which role the agent in question plays.
+## Step 4 — The snippets
 
 ### Snippet to merge into the implementer agent's file
 
@@ -121,15 +153,16 @@ verbatim, edited only to reflect which role the agent in question plays.
 
 You share this project with another AI coding agent via the `agentmail` MCP
 server. Your role is **implementer**: you receive prompts, do the work, and
-report back for review. Coordinate exclusively through the `mail_*` tools —
-do not ask the user to relay messages.
+report back for review. Coordinate exclusively through the agentmail MCP
+tools (`inbox`, `wait`, `pull`, `send`, `status`) — do not ask the user to
+relay messages.
 
-**At the start of every session**, call `wait` once. It returns
-immediately if your inbox already has queued messages, so this avoids the
-extra round trip of calling `inbox` first. If headers come back, `pull`
-the most recent `prompt` or `review-finding` and start there. Otherwise
-the call blocks until work arrives. You must still `pull` before acting
-on any message body — headers alone are not the prompt.
+**At the start of every session**, call `wait` once. It returns immediately
+if your inbox already has queued messages, so this avoids the extra round
+trip of calling `inbox` first. If headers come back, `pull` the most recent
+`prompt` or `review-finding` and start there. Otherwise the call blocks
+until work arrives. You must still `pull` before acting on any message
+body — headers alone are not the prompt.
 
 **Loop:**
 
@@ -156,7 +189,8 @@ every case.
 You share this project with another AI coding agent via the `agentmail` MCP
 server. Your role is **planner and reviewer**: you formulate prompts with
 the user, delegate to the implementer, and review what comes back.
-Coordinate exclusively through the `mail_*` tools.
+Coordinate exclusively through the agentmail MCP tools (`inbox`, `wait`,
+`pull`, `send`, `status`).
 
 **At the start of every session**, call `inbox` once. If there are
 unread `report-back` or `blockers` messages, prioritise them.
@@ -172,16 +206,31 @@ unread `report-back` or `blockers` messages, prioritise them.
    - Approved → `send green-light`, optionally a `commit-pr-prompt`.
    - Blockers → resolve with the user, then `send` back with guidance.
 
-**Never** poll `inbox` in a loop — use `wait`. **Never** send a
-`prompt` without the context the implementer needs to act on it alone; the
+**Never** poll `inbox` in a loop — use `wait`. **Never** send a `prompt`
+without the context the implementer needs to act on it alone; the
 implementer cannot see your conversation with the user.
 ```
 
-### If the user hasn't told you which agent plays which role
+## Step 5 — Verification
 
-Default assignment: **Claude implements, Codex plans + reviews.** This is
-the convention most agentmail users run. If unsure, ask the user once before
-writing the snippets, then proceed.
+After editing, do a final read-through of every file you changed and
+confirm:
+
+1. `.mcp.json` (if you wrote one) parses as JSON, has an `agentmail`
+   server entry, and the `AGENTMAIL_DIR` is the absolute path to this
+   project's `.mail/`.
+2. `.codex/config.toml` (if you wrote one) has a single
+   `[mcp_servers.agentmail]` block with the matching `AGENTMAIL_DIR`.
+3. The `## agentmail coordination` section exists exactly once in each
+   instruction file you touched.
+4. The role (implementer vs planner) matches what the user intends.
+5. No tool name is misspelled (it's `inbox`, `wait`, `pull`, `send`,
+   `status` — all lowercase, no prefix).
+6. You have not removed or reordered unrelated sections.
+
+Report back to the user with a one-line summary per file you changed,
+plus a reminder: **restart any open Claude or Codex sessions** so the
+agent CLIs re-read the MCP config and the new instruction files.
 
 ## What you should NOT do
 
@@ -191,22 +240,9 @@ writing the snippets, then proceed.
   timer. The whole point of `wait` is to avoid that pattern.
 - Do not document `status` as a way to communicate with the peer. It is
   for the human's TUI only and is never visible to the peer agent.
-- Do not write CLAUDE.md / AGENTS.md content that contradicts the project's
-  existing conventions. If you see existing content that conflicts (e.g. a
-  rule that says "never use MCP tools without asking the user"), surface
-  the conflict to the user before changing anything.
+- Do not write CLAUDE.md / AGENTS.md content that contradicts the
+  project's existing conventions. If you see existing content that
+  conflicts (e.g. a rule that says "never use MCP tools without asking
+  the user"), surface the conflict to the user before changing anything.
 - Do not add a section longer than the snippets above. Verbose project
   instructions waste tokens on every session start.
-
-## Verification step
-
-After editing, do a final read-through of every file you changed and
-confirm:
-
-1. The `## agentmail coordination` section exists exactly once.
-2. The role (implementer vs planner) matches what the user intends.
-3. No tool name is misspelled (it's `inbox`, `wait`, `pull`,
-   `send`, `status` — all lowercase, all snake_case).
-4. You have not removed or reordered unrelated sections.
-
-Report back to the user with a one-line summary per file you changed.
